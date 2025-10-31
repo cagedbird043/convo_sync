@@ -35,13 +35,37 @@ class JSONCleaner:
         except FileNotFoundError:
             raise FileNotFoundError(f"Input file not found: {self.input_file}")
 
-        # Process the conversation chunks
-        if "chunkedPrompt" in data and "chunks" in data["chunkedPrompt"]:
-            chunks = data["chunkedPrompt"]["chunks"]
-            cleaned_chunks = self._process_chunks(chunks)
-            cleaned_data = {"conversations": cleaned_chunks}
-        else:
-            cleaned_data = {"conversations": []}
+        # Process the conversations
+        conversations = data.get("conversations", [])
+        cleaned_conversations = []
+
+        for conv in conversations:
+            cleaned_conv = {}
+
+            # Copy role if exists
+            if "role" in conv:
+                cleaned_conv["role"] = conv["role"]
+
+            # Handle chunkedPrompt.chunks structure
+            if "chunkedPrompt" in conv and "chunks" in conv["chunkedPrompt"]:
+                chunks = conv["chunkedPrompt"]["chunks"]
+                text_parts = []
+                for chunk in chunks:
+                    if isinstance(chunk, dict) and "parts" in chunk:
+                        for part in chunk["parts"]:
+                            if isinstance(part, dict) and "text" in part:
+                                text_parts.append(part["text"])
+                cleaned_conv["text"] = "".join(text_parts)
+            # Handle direct text field
+            elif "text" in conv:
+                cleaned_conv["text"] = conv["text"]
+            else:
+                cleaned_conv["text"] = ""
+
+            if cleaned_conv.get("text"):  # Only add if has text
+                cleaned_conversations.append(cleaned_conv)
+
+        cleaned_data = {"conversations": cleaned_conversations}
 
         # Save to output file
         with open(self.output_file, "w", encoding="utf-8") as f:

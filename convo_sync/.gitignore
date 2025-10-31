@@ -63,11 +63,8 @@ venv.bak/
 
 # Project specific
 *.json
-*.md
-!README.md
-!DATA_PROCESSING_SUMMARY.md
-!QUICK_REFERENCE.md
-!README_PROCESSING.md
+!examples/*.json
+!tests/*.json
 
 # Temporary files
 *.tmp

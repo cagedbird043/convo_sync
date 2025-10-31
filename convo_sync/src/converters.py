@@ -81,10 +81,10 @@ class MarkdownConverter:
             content = f.read()
 
         user_count = content.count("## 👤")
-        model_count = content.count("## 🤖")
+        assistant_count = content.count("## 🤖")
 
         return {
             "users": user_count,
-            "models": model_count,
-            "total": user_count + model_count,
+            "assistants": assistant_count,
+            "total": user_count + assistant_count,
         }
