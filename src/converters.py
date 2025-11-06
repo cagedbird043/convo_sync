@@ -85,6 +85,6 @@ class MarkdownConverter:
 
         return {
             "users": user_count,
-            "assistants": assistant_count,
+            "models": assistant_count,
             "total": user_count + assistant_count,
         }

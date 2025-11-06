@@ -37,6 +37,13 @@ class JSONCleaner:
 
         # Process the conversations
         conversations = data.get("conversations", [])
+        if not conversations:
+            # Check for chunkedPrompt structure
+            chunked_prompt = data.get("chunkedPrompt", {})
+            chunks = chunked_prompt.get("chunks", [])
+            if chunks:
+                conversations = chunks
+
         cleaned_conversations = []
 
         for conv in conversations:
@@ -46,15 +53,12 @@ class JSONCleaner:
             if "role" in conv:
                 cleaned_conv["role"] = conv["role"]
 
-            # Handle chunkedPrompt.chunks structure
-            if "chunkedPrompt" in conv and "chunks" in conv["chunkedPrompt"]:
-                chunks = conv["chunkedPrompt"]["chunks"]
+            # Handle parts structure (for chunks with fragmented text)
+            if "parts" in conv:
                 text_parts = []
-                for chunk in chunks:
-                    if isinstance(chunk, dict) and "parts" in chunk:
-                        for part in chunk["parts"]:
-                            if isinstance(part, dict) and "text" in part:
-                                text_parts.append(part["text"])
+                for part in conv["parts"]:
+                    if isinstance(part, dict) and "text" in part:
+                        text_parts.append(part["text"])
                 cleaned_conv["text"] = "".join(text_parts)
             # Handle direct text field
             elif "text" in conv:
