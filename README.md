@@ -8,6 +8,7 @@
 
 - ✅ **JSON 清理**：去除碎片化结构，标准化对话数据
 - ✅ **Markdown 转换**：生成清晰、易渲染的 Markdown 格式
+- ✅ **思维链过滤**：自动删除 AI 思维过程，保留核心对话
 - ✅ **数据统计**：自动统计用户和助手消息数量
 - ✅ **完整工作流**：支持 clean → convert 完整管道
 - ✅ **专业 CLI**：易用的命令行界面
@@ -51,6 +52,10 @@ python convo_sync.py pipeline input.json --stats
 # 查看统计信息
 python convo_sync.py clean input.json --stats
 python convo_sync.py convert input.json --stats
+
+# 保留 AI 思维过程（默认会删除）
+python convo_sync.py convert input.json --no-thinking
+python convo_sync.py pipeline input.json --no-thinking
 
 # 自定义输出路径
 python convo_sync.py pipeline input.json \

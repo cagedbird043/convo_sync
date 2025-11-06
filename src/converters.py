@@ -3,21 +3,61 @@ Markdown Converter Module - Markdown 转换模块
 """
 
 import json
+import re
 
 
 class MarkdownConverter:
     """Convert cleaned JSON to clean, renderable Markdown format."""
 
-    def __init__(self, input_json_file, output_md_file=None):
+    def __init__(self, input_json_file, output_md_file=None, remove_thinking=True):
         """
         Initialize the Markdown converter.
 
         Args:
             input_json_file: Path to input JSON file (cleaned format)
             output_md_file: Path to output Markdown file
+            remove_thinking: Whether to remove AI thinking process
+                sections (default: True)
         """
         self.input_json_file = input_json_file
         self.output_md_file = output_md_file or input_json_file.replace(".json", ".md")
+        self.remove_thinking = remove_thinking
+
+    def _remove_thinking_sections(self, text):
+        """
+        Remove AI thinking process sections from text.
+
+        Removes content between thinking markers like:
+        - **Title**\n\nThinking content\n\n\n
+        - Multiple consecutive sections separated by \n\n\n
+
+        Args:
+            text: Input text possibly containing thinking sections
+
+        Returns:
+            Text with thinking sections removed
+        """
+        # Pattern: Match **Bold Title** followed by paragraph(s)
+        # The thinking section ends with triple newlines (\n\n\n)
+        # or another **Bold Title**
+
+        # This regex matches:
+        # - **any text** (bold title)
+        # - \n\n (double newline after title)
+        # - .*? (non-greedy match for content, including newlines)
+        # - \n\n\n (triple newline marking end of section)
+        pattern = r"\*\*[^*]+\*\*\n\n.*?\n\n\n"
+        text = re.sub(pattern, "", text, flags=re.DOTALL)
+
+        # Also remove remaining **Title**\n\n...content at the end
+        # (in case there's no triple newline at the very end)
+        pattern_end = r"\*\*[^*]+\*\*\n\n.*?(?=\n\n[^\n]|$)"
+        text = re.sub(pattern_end, "", text, flags=re.DOTALL)
+
+        # Clean up excessive newlines (more than 2 consecutive)
+        text = re.sub(r"\n{3,}", "\n\n", text)
+
+        return text.strip()
 
     def convert(self):
         """
@@ -25,6 +65,7 @@ class MarkdownConverter:
         - Auto-categorization by role (👤 User / 🤖 Assistant)
         - Clear headers and separators
         - Professional rendering
+        - Optional thinking process removal
         """
         try:
             with open(self.input_json_file, "r", encoding="utf-8") as f:
@@ -54,6 +95,14 @@ class MarkdownConverter:
 
                 # Skip empty conversations
                 if not text:
+                    continue
+
+                # Remove thinking sections if enabled
+                if self.remove_thinking and role == "model":
+                    text = self._remove_thinking_sections(text)
+
+                # Skip if text is empty after thinking removal
+                if not text.strip():
                     continue
 
                 # Determine emoji and label

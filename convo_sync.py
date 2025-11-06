@@ -6,8 +6,6 @@ ConvoSync CLI - Command-line interface for conversation data processing
 
 import argparse
 import sys
-from pathlib import Path
-
 from src.cleaners import JSONCleaner
 from src.converters import MarkdownConverter
 
@@ -41,6 +39,11 @@ Examples:
     convert_parser = subparsers.add_parser("convert", help="Convert JSON to Markdown")
     convert_parser.add_argument("input", help="Input JSON file (cleaned format)")
     convert_parser.add_argument("-o", "--output", help="Output Markdown file")
+    convert_parser.add_argument(
+        "--no-thinking",
+        action="store_true",
+        help="Keep AI thinking process (default: remove)",
+    )
     convert_parser.add_argument("--stats", action="store_true", help="Show statistics")
 
     # Pipeline command
@@ -50,6 +53,11 @@ Examples:
     pipeline_parser.add_argument("input", help="Input JSON file")
     pipeline_parser.add_argument("-c", "--clean-output", help="Clean JSON output file")
     pipeline_parser.add_argument("-m", "--md-output", help="Markdown output file")
+    pipeline_parser.add_argument(
+        "--no-thinking",
+        action="store_true",
+        help="Keep AI thinking process (default: remove)",
+    )
     pipeline_parser.add_argument("--stats", action="store_true", help="Show statistics")
 
     args = parser.parse_args()
@@ -81,7 +89,7 @@ def handle_clean(args):
 
     if args.stats:
         stats = cleaner.get_stats()
-        print(f"\n📊 Statistics:")
+        print("\n📊 Statistics:")
         print(f"  Total conversations: {stats['total']}")
         print(f"  User messages: {stats['users']}")
         print(f"  Model messages: {stats['models']}")
@@ -91,14 +99,18 @@ def handle_convert(args):
     """Handle convert command."""
     print(f"🔄 Converting to Markdown: {args.input}")
 
-    converter = MarkdownConverter(args.input, args.output)
+    # Default is to remove thinking (unless --no-thinking is set)
+    remove_thinking = not args.no_thinking
+    converter = MarkdownConverter(args.input, args.output, remove_thinking)
     output_file = converter.convert()
 
     print(f"✅ Markdown saved to: {output_file}")
+    if remove_thinking:
+        print("   (AI thinking process removed)")
 
     if args.stats:
         stats = converter.get_stats()
-        print(f"\n📊 Statistics:")
+        print("\n📊 Statistics:")
         print(f"  Total conversations: {stats['total']}")
         print(f"  👤 User messages: {stats['users']}")
         print(f"  🤖 Model messages: {stats['models']}")
@@ -109,21 +121,24 @@ def handle_pipeline(args):
     input_file = args.input
 
     # Step 1: Clean
-    print(f"📋 Step 1: Cleaning JSON...")
+    print("📋 Step 1: Cleaning JSON...")
     clean_output = args.clean_output or input_file.replace(".json", ".cleaned.json")
     cleaner = JSONCleaner(input_file, clean_output)
     cleaner.clean()
     print(f"✅ Cleaned: {clean_output}")
 
     # Step 2: Convert
-    print(f"\n📋 Step 2: Converting to Markdown...")
+    print("\n📋 Step 2: Converting to Markdown...")
     md_output = args.md_output or input_file.replace(".json", ".md")
-    converter = MarkdownConverter(clean_output, md_output)
+    remove_thinking = not args.no_thinking
+    converter = MarkdownConverter(clean_output, md_output, remove_thinking)
     converter.convert()
     print(f"✅ Converted: {md_output}")
+    if remove_thinking:
+        print("   (AI thinking process removed)")
 
     if args.stats:
-        print(f"\n📊 Pipeline Statistics:")
+        print("\n📊 Pipeline Statistics:")
         clean_stats = cleaner.get_stats()
         print(f"  Cleaned conversations: {clean_stats['total']}")
         print(f"    - Users: {clean_stats['users']}")
