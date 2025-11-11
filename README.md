@@ -16,6 +16,8 @@
 
 专为 Google AI Studio 导出的对话数据设计的清理和转换工具，使用启发式算法智能识别代码块。
 
+📚 **[查看完整文档 (View Full Documentation)](https://cagedbird043.github.io/convo_sync/)**
+
 ## 特点
 
 - ✅ **Google AI Studio 支持**：专门处理 GAS 导出的 JSON 格式
