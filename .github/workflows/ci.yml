@@ -92,9 +92,14 @@ jobs:
           pixi run -e ${{ matrix.pixi-environment }} test
 
       - name: Upload coverage reports to Codecov
+        if: matrix.python-version == '3.14'
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          flags: py${{ matrix.python-version }}
+          name: python-${{ matrix.python-version }}
+          fail_ci_if_error: false
 
   # Layer 3: 跨平台测试（macOS 和 Windows，只测最新 Python）
   test-cross-platform:
