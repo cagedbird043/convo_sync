@@ -6,6 +6,7 @@ ConvoSync CLI - Command-line interface for conversation data processing
 
 import argparse
 import sys
+
 from src.cleaners import JSONCleaner
 from src.converters import MarkdownConverter
 
@@ -78,9 +79,7 @@ def main():
     convert_parser.add_argument("--stats", action="store_true", help="Show statistics")
 
     # Pipeline command
-    pipeline_parser = subparsers.add_parser(
-        "pipeline", help="Run full clean->convert pipeline"
-    )
+    pipeline_parser = subparsers.add_parser("pipeline", help="Run full clean->convert pipeline")
     pipeline_parser.add_argument("input", help="Input JSON file")
     pipeline_parser.add_argument("-c", "--clean-output", help="Clean JSON output file")
     pipeline_parser.add_argument("-m", "--md-output", help="Markdown output file")

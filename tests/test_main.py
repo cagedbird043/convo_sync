@@ -6,12 +6,12 @@ Unit tests for ConvoSync toolkit
 
 import json
 import os
-import tempfile
-import unittest
-from pathlib import Path
 
 # Add parent directory to path for imports
 import sys
+import tempfile
+import unittest
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

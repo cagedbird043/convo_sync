@@ -2,10 +2,10 @@
 
 ## 项目概览
 
-**项目名称**: ConvoSync  
-**项目描述**: AI Conversation Data Processing Toolkit  
-**版本**: 1.0.0  
-**许可证**: MIT  
+**项目名称**: ConvoSync
+**项目描述**: AI Conversation Data Processing Toolkit
+**版本**: 1.0.0
+**许可证**: MIT
 **开发者**: Cagedbird
 
 ---
@@ -317,5 +317,5 @@ MIT License - 自由使用、修改和分发
 
 ---
 
-**最后更新**: 2024  
+**最后更新**: 2024
 **项目状态**: ✅ 生产就绪

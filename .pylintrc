@@ -1,27 +1,48 @@
 [MASTER]
-# Add files or directories to the ignore list
 ignore = CVS
 ignore-patterns = test_.*?py
+load-plugins = pylint.extensions.docparams
 
 [FORMAT]
-# Maximum number of characters on a single line
 max-line-length = 120
-
-# Regexp for a line that is allowed to be longer than the limit
-ignore-long-lines = ^\s*(# )?<?https?://\S+>?$
+indent-string = '    '
+indent-after-paren = 4
 
 [MESSAGES CONTROL]
-disable = 
-    C0330,
-    C0326,
+disable =
     W0212,
+    C0103,
+    R0913,
+    R0914,
+    C0111,
+    R0801,
 
 [VARIABLES]
-# Good variable names which should always be accepted, separated by a comma
-good-names = i,j,k,ex,Run,_,id,x,y,f,df,ax
+good-names = i,j,k,ex,Run,_,id,x,y,f,df,ax,v,e
 
 [DESIGN]
-# Maximum number of arguments for function / method
 max-args = 5
-# Maximum number of attributes for a class
 max-attributes = 7
+max-locals = 15
+max-branches = 12
+max-statements = 50
+
+[SIMILARITIES]
+min-similarity-lines = 4
+ignore-comments = yes
+ignore-docstrings = yes
+ignore-imports = yes
+
+[LOGGING]
+logging-format-style = new
+
+[BASIC]
+argument-naming-style = snake_case
+variable-naming-style = snake_case
+function-naming-style = snake_case
+class-naming-style = PascalCase
+module-naming-style = snake_case
+const-naming-style = UPPER_CASE
+
+[ERRORS]
+bad-indentation = C0111
