@@ -1,0 +1,27 @@
+[MASTER]
+# Add files or directories to the ignore list
+ignore = CVS
+ignore-patterns = test_.*?py
+
+[FORMAT]
+# Maximum number of characters on a single line
+max-line-length = 120
+
+# Regexp for a line that is allowed to be longer than the limit
+ignore-long-lines = ^\s*(# )?<?https?://\S+>?$
+
+[MESSAGES CONTROL]
+disable = 
+    C0330,
+    C0326,
+    W0212,
+
+[VARIABLES]
+# Good variable names which should always be accepted, separated by a comma
+good-names = i,j,k,ex,Run,_,id,x,y,f,df,ax
+
+[DESIGN]
+# Maximum number of arguments for function / method
+max-args = 5
+# Maximum number of attributes for a class
+max-attributes = 7

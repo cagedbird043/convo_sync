@@ -9,7 +9,12 @@ import re
 class MarkdownConverter:
     """Convert cleaned JSON to clean, renderable Markdown format."""
 
-    def __init__(self, input_json_file, output_md_file=None, remove_thinking=True):
+    def __init__(
+        self,
+        input_json_file,
+        output_md_file=None,
+        remove_thinking=True,
+    ):
         """
         Initialize the Markdown converter.
 
@@ -20,8 +25,50 @@ class MarkdownConverter:
                 sections (default: True)
         """
         self.input_json_file = input_json_file
-        self.output_md_file = output_md_file or input_json_file.replace(".json", ".md")
+        default_output = input_json_file.replace(".json", ".md")
+        self.output_md_file = output_md_file or default_output
         self.remove_thinking = remove_thinking
+        self.message_counter = {"user": 0, "model": 0}
+
+    def _normalize_code_blocks(self, text):
+        """
+        Normalize code block backticks to use proper markdown syntax.
+
+        Ensures code blocks use appropriate number of backticks:
+        - Single backticks for inline code
+        - Triple backticks (minimum) for code blocks
+        - Uses language specifier when available
+
+        Args:
+            text: Input text with code blocks
+
+        Returns:
+            Text with normalized code blocks
+        """
+        # First pass: normalize code blocks with any number of backticks
+        # Match opening backticks (3+), optional language, content,
+        # closing backticks
+        def normalize_block(match):
+            language = match.group(2).lower().strip()
+            content = match.group(3)
+
+            # Always use triple backticks
+            return f"```{language}\n{content.strip()}\n```"
+
+        # Pattern: (3+ backticks)(optional language)(content)(same backticks)
+        text = re.sub(
+            r"^(`{3,})([a-z0-9]*)\s*\n(.*?)\n\1$",
+            normalize_block,
+            text,
+            flags=re.MULTILINE | re.DOTALL,
+        )
+
+        # Second pass: normalize consecutive triple backticks (merge them)
+        # This handles cases where code blocks got duplicated
+        text = re.sub(r"\n```\n```\n", "\n```\n", text)
+        text = re.sub(r"```+", "```", text)
+
+        return text
 
     def _remove_thinking_sections(self, text):
         """
@@ -62,9 +109,9 @@ class MarkdownConverter:
     def convert(self):
         """
         Convert cleaned JSON to Markdown format with:
-        - Auto-categorization by role (👤 User / 🤖 Assistant)
-        - Clear headers and separators
-        - Professional rendering
+        - Clear role-based sections (Human / Assistant)
+        - Proper formatting to avoid AI learning confusion
+        - Code block normalization
         - Optional thinking process removal
         """
         try:
@@ -73,7 +120,8 @@ class MarkdownConverter:
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON file: {e}")
         except FileNotFoundError:
-            raise FileNotFoundError(f"Input file not found: {self.input_json_file}")
+            msg = f"Input file not found: {self.input_json_file}"
+            raise FileNotFoundError(msg)
 
         if "conversations" not in data:
             raise ValueError(
@@ -81,11 +129,12 @@ class MarkdownConverter:
             )
 
         conversations = data["conversations"]
+        self.message_counter = {"user": 0, "model": 0}
 
         with open(self.output_md_file, "w", encoding="utf-8") as f:
             # Write header
-            f.write("# 对话记录\n\n")
-            f.write(f"> 总计 {len(conversations)} 条对话记录\n\n")
+            f.write("# Conversation Log\n\n")
+            f.write(f"> Total {len(conversations)} messages\n\n")
             f.write("---\n\n")
 
             # Process each conversation
@@ -105,35 +154,48 @@ class MarkdownConverter:
                 if not text.strip():
                     continue
 
-                # Determine emoji and label
-                if role == "user":
-                    emoji = "👤"
-                    label = "用户"
-                elif role == "model":
-                    emoji = "🤖"
-                    label = "助手"
-                else:
-                    emoji = "💬"
-                    label = "其他"
+        # Normalize code blocks
+                text = self._normalize_code_blocks(text)
 
-                # Write conversation
-                f.write(f"## {emoji} {label}\n\n")
-                f.write(text)
-                f.write("\n\n")
-                f.write("---\n\n")
+                # Increment counter
+                if role in self.message_counter:
+                    self.message_counter[role] += 1
+
+                # Format output based on role
+                if role == "user":
+                    self._write_user_message(f, idx, text)
+                elif role == "model":
+                    self._write_assistant_message(f, idx, text)
+                else:
+                    self._write_other_message(f, idx, role, text)
 
         return self.output_md_file
 
+    def _write_user_message(self, f, idx, text):
+        """Write user message in standard format."""
+        f.write("**Human:**\n\n")
+        f.write(text)
+        f.write("\n\n")
+        f.write("---\n\n")
+
+    def _write_assistant_message(self, f, idx, text):
+        """Write assistant message in standard format."""
+        f.write("**Assistant:**\n\n")
+        f.write(text)
+        f.write("\n\n")
+        f.write("---\n\n")
+
+    def _write_other_message(self, f, idx, role, text):
+        """Write other role message in standard format."""
+        f.write(f"**{role.capitalize()}:**\n\n")
+        f.write(text)
+        f.write("\n\n")
+        f.write("---\n\n")
+
     def get_stats(self):
         """Get statistics about the conversion."""
-        with open(self.output_md_file, "r", encoding="utf-8") as f:
-            content = f.read()
-
-        user_count = content.count("## 👤")
-        assistant_count = content.count("## 🤖")
-
         return {
-            "users": user_count,
-            "models": assistant_count,
-            "total": user_count + assistant_count,
+            "users": self.message_counter.get("user", 0),
+            "models": self.message_counter.get("model", 0),
+            "total": sum(self.message_counter.values()),
         }
