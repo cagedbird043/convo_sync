@@ -12,12 +12,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Layer 1: 快速检查 - 使用 Pixi Docker 镜像
+  # Layer 1: 快速检查 - 使用 Pixi 安装脚本
   pre-commit:
-    name: Pre-commit Checks (Pixi Docker)
+    name: Pre-commit Checks
     runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/prefix-dev/pixi:latest
     timeout-minutes: 5
 
     steps:
@@ -26,13 +24,21 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Cache pre-commit
+      - name: Install Pixi
+        run: curl -fsSL https://pixi.sh/install.sh | sh
+
+      - name: Add Pixi to PATH
+        run: echo "$HOME/.pixi/bin" >> $GITHUB_PATH
+
+      - name: Cache Pixi environment
         uses: actions/cache@v4
         with:
-          path: ~/.cache/pre-commit
-          key: pre-commit-docker-${{ hashFiles('.pre-commit-config.yaml', 'pixi.lock') }}
+          path: |
+            .pixi
+            ~/.cache/pre-commit
+          key: pixi-${{ runner.os }}-${{ hashFiles('pixi.lock', '.pre-commit-config.yaml') }}
           restore-keys: |
-            pre-commit-docker-
+            pixi-${{ runner.os }}-
 
       - name: Show Pixi version
         run: pixi --version
@@ -43,13 +49,11 @@ jobs:
       - name: Run pre-commit via Pixi
         run: pixi run hooks-run
 
-  # Layer 2: Python 多版本兼容性测试（Linux + Pixi Docker）
+  # Layer 2: Python 多版本兼容性测试（Linux）
   test-compatibility:
-    name: Test Python ${{ matrix.python-version }} (Docker)
+    name: Test Python ${{ matrix.python-version }}
     needs: pre-commit
     runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/prefix-dev/pixi:latest
     timeout-minutes: 8
     strategy:
       fail-fast: false # 所有版本都要测试完
@@ -66,6 +70,20 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Install Pixi
+        run: curl -fsSL https://pixi.sh/install.sh | sh
+
+      - name: Add Pixi to PATH
+        run: echo "$HOME/.pixi/bin" >> $GITHUB_PATH
+
+      - name: Cache Pixi environment
+        uses: actions/cache@v4
+        with:
+          path: .pixi
+          key: pixi-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('pixi.lock') }}
+          restore-keys: |
+            pixi-${{ runner.os }}-${{ matrix.python-version }}-
 
       - name: Test Python ${{ matrix.python-version }}
         run: |
@@ -97,12 +115,27 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Pixi
-        uses: prefix-dev/setup-pixi@v0.8.0
+      - name: Install Pixi
+        run: curl -fsSL https://pixi.sh/install.sh | sh
+        shell: bash
+
+      - name: Add Pixi to PATH (Unix)
+        if: runner.os != 'Windows'
+        run: echo "$HOME/.pixi/bin" >> $GITHUB_PATH
+        shell: bash
+
+      - name: Add Pixi to PATH (Windows)
+        if: runner.os == 'Windows'
+        run: echo "$HOME/.pixi/bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        shell: pwsh
+
+      - name: Cache Pixi environment
+        uses: actions/cache@v4
         with:
-          pixi-version: latest
-          cache: true
-          cache-write: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          path: .pixi
+          key: pixi-${{ runner.os }}-${{ hashFiles('pixi.lock') }}
+          restore-keys: |
+            pixi-${{ runner.os }}-
 
       - name: Show environment
         run: pixi run python-version
@@ -110,19 +143,31 @@ jobs:
       - name: Run tests
         run: pixi run test
 
-  # Layer 4: 完整质量检查（仅主分支，使用 Docker）
+  # Layer 4: 完整质量检查（仅主分支）
   quality-full:
     name: Full Quality & Compatibility Check
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
     needs: [pre-commit, test-compatibility, test-cross-platform]
     runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/prefix-dev/pixi:latest
     timeout-minutes: 15
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Install Pixi
+        run: curl -fsSL https://pixi.sh/install.sh | sh
+
+      - name: Add Pixi to PATH
+        run: echo "$HOME/.pixi/bin" >> $GITHUB_PATH
+
+      - name: Cache Pixi environment
+        uses: actions/cache@v4
+        with:
+          path: .pixi
+          key: pixi-full-${{ runner.os }}-${{ hashFiles('pixi.lock') }}
+          restore-keys: |
+            pixi-full-${{ runner.os }}-
 
       - name: Run complete compatibility check
         run: |
