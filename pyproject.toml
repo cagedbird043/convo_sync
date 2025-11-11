@@ -39,7 +39,8 @@ dev = [
 docs = [
     "mkdocs>=1.5.0",
     "mkdocs-material>=9.5.0",
-    "mkdocstrings[python]>=0.24.0",
+    "mkdocstrings>=0.24.0",
+    "mkdocstrings-python>=0.24.0",
 ]
 
 [project.urls]
@@ -59,6 +60,7 @@ exclude = [
     "build",
     "dist",
     "__pycache__",
+    "_version.py",
 ]
 
 [tool.ruff.lint]
