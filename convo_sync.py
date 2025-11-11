@@ -64,6 +64,16 @@ def main():
     clean_parser = subparsers.add_parser("clean", help="Clean and normalize JSON data")
     clean_parser.add_argument("input", help="Input JSON file")
     clean_parser.add_argument("-o", "--output", help="Output JSON file")
+    clean_parser.add_argument(
+        "--keep-thinking",
+        action="store_true",
+        help="Keep AI thinking process (default: remove)",
+    )
+    clean_parser.add_argument(
+        "--keep-code",
+        action="store_true",
+        help="Keep code blocks (default: remove)",
+    )
     clean_parser.add_argument("--stats", action="store_true", help="Show statistics")
 
     # Convert command
@@ -83,9 +93,19 @@ def main():
     pipeline_parser.add_argument("-c", "--clean-output", help="Clean JSON output file")
     pipeline_parser.add_argument("-m", "--md-output", help="Markdown output file")
     pipeline_parser.add_argument(
-        "--no-thinking",
+        "--keep-thinking",
         action="store_true",
         help="Keep AI thinking process (default: remove)",
+    )
+    pipeline_parser.add_argument(
+        "--keep-code",
+        action="store_true",
+        help="Keep code blocks (default: remove)",
+    )
+    pipeline_parser.add_argument(
+        "--no-thinking",
+        action="store_true",
+        help="Keep AI thinking process (default: remove) [DEPRECATED: use --keep-thinking]",
     )
     pipeline_parser.add_argument("--stats", action="store_true", help="Show statistics")
 
@@ -122,30 +142,41 @@ def handle_default_pipeline(args):
     print("🚀 Running ConvoSync Pipeline...")
     print(f"📄 Input: {input_file}")
 
+    # 默认移除思考和代码块
+    remove_thinking = not args.no_thinking
+    remove_code = True  # 默认模式总是移除代码块
+
     # Step 1: Clean
     print("\n📋 Step 1: Cleaning JSON...")
     clean_output = args.clean_output or input_file.replace(".json", ".cleaned.json")
-    cleaner = JSONCleaner(input_file, clean_output)
+    cleaner = JSONCleaner(
+        input_file,
+        clean_output,
+        remove_thinking=remove_thinking,
+        remove_code_blocks=remove_code,
+    )
     cleaner.clean()
     print(f"✅ Cleaned: {clean_output}")
+    if remove_thinking:
+        print("   🧠 Thinking process removed")
+    if remove_code:
+        print("   💾 Code blocks removed")
 
     # Step 2: Convert to Markdown
     print("\n📋 Step 2: Converting to Markdown...")
     md_output = args.md_output or input_file.replace(".json", ".md")
-    remove_thinking = not args.no_thinking
-    converter = MarkdownConverter(clean_output, md_output, remove_thinking)
+    converter = MarkdownConverter(clean_output, md_output, False)  # 已在clean阶段移除
     converter.convert()
     print(f"✅ Markdown: {md_output}")
-    if remove_thinking:
-        print("   (AI thinking process removed)")
 
     # Statistics
     if args.stats:
         print("\n📊 Statistics:")
         clean_stats = cleaner.get_stats()
-        print(f"  Cleaned conversations: {clean_stats['total']}")
+        print(f"  Cleaned chunks: {clean_stats['total']}")
         print(f"    - 👤 Users: {clean_stats['users']}")
         print(f"    - 🤖 Models: {clean_stats['models']}")
+        print(f"    - 📎 Files: {clean_stats['files']}")
 
         md_stats = converter.get_stats()
         print(f"  Markdown output: {md_stats['total']} entries")
@@ -159,17 +190,30 @@ def handle_clean(args):
     """Handle clean command."""
     print(f"🔄 Cleaning JSON file: {args.input}")
 
-    cleaner = JSONCleaner(args.input, args.output)
+    remove_thinking = not args.keep_thinking
+    remove_code = not args.keep_code
+
+    cleaner = JSONCleaner(
+        args.input,
+        args.output,
+        remove_thinking=remove_thinking,
+        remove_code_blocks=remove_code,
+    )
     cleaner.clean()
 
     print(f"✅ Cleaned JSON saved to: {cleaner.output_file}")
+    if remove_thinking:
+        print("   🧠 Thinking process removed")
+    if remove_code:
+        print("   💾 Code blocks removed")
 
     if args.stats:
         stats = cleaner.get_stats()
         print("\n📊 Statistics:")
-        print(f"  Total conversations: {stats['total']}")
-        print(f"  User messages: {stats['users']}")
-        print(f"  Model messages: {stats['models']}")
+        print(f"  Total chunks: {stats['total']}")
+        print(f"  👤 User messages: {stats['users']}")
+        print(f"  🤖 Model messages: {stats['models']}")
+        print(f"  📎 File references: {stats['files']}")
 
 
 def handle_convert(args):
@@ -197,29 +241,40 @@ def handle_pipeline(args):
     """Handle full pipeline command."""
     input_file = args.input
 
+    # 兼容旧参数
+    remove_thinking = not (args.keep_thinking or args.no_thinking)
+    remove_code = not args.keep_code
+
     # Step 1: Clean
     print("📋 Step 1: Cleaning JSON...")
     clean_output = args.clean_output or input_file.replace(".json", ".cleaned.json")
-    cleaner = JSONCleaner(input_file, clean_output)
+    cleaner = JSONCleaner(
+        input_file,
+        clean_output,
+        remove_thinking=remove_thinking,
+        remove_code_blocks=remove_code,
+    )
     cleaner.clean()
     print(f"✅ Cleaned: {clean_output}")
+    if remove_thinking:
+        print("   🧠 Thinking process removed")
+    if remove_code:
+        print("   💾 Code blocks removed")
 
     # Step 2: Convert
     print("\n📋 Step 2: Converting to Markdown...")
     md_output = args.md_output or input_file.replace(".json", ".md")
-    remove_thinking = not args.no_thinking
-    converter = MarkdownConverter(clean_output, md_output, remove_thinking)
+    converter = MarkdownConverter(clean_output, md_output, False)  # 已在clean阶段移除
     converter.convert()
     print(f"✅ Converted: {md_output}")
-    if remove_thinking:
-        print("   (AI thinking process removed)")
 
     if args.stats:
         print("\n📊 Pipeline Statistics:")
         clean_stats = cleaner.get_stats()
-        print(f"  Cleaned conversations: {clean_stats['total']}")
-        print(f"    - Users: {clean_stats['users']}")
-        print(f"    - Models: {clean_stats['models']}")
+        print(f"  Cleaned chunks: {clean_stats['total']}")
+        print(f"    - 👤 Users: {clean_stats['users']}")
+        print(f"    - 🤖 Models: {clean_stats['models']}")
+        print(f"    - 📎 Files: {clean_stats['files']}")
 
         md_stats = converter.get_stats()
         print(f"  Markdown output: {md_stats['total']} entries")
