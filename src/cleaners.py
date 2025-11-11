@@ -59,7 +59,7 @@ class JSONCleaner:
             with open(self.input_file, encoding="utf-8") as f:
                 return json.load(f)
         except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON file: {e}") from e
+            raise ValueError(f"Invalisd JSON file: {e}") from e
         except FileNotFoundError as e:
             raise FileNotFoundError(f"Input file not found: {self.input_file}") from e
 

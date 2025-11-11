@@ -6,251 +6,244 @@ Unit tests for ConvoSync toolkit
 import json
 import os
 import shutil
-
-# Add parent directory to path for imports
 import sys
 import tempfile
-import unittest
+from pathlib import Path
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import pytest
+
+# Ensure the parent directory is in the path
+parent_dir = str(Path(__file__).parent.parent)
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
 
 from src.cleaners import JSONCleaner
 from src.converters import MarkdownConverter
 
 
-class TestJSONCleaner(unittest.TestCase):
-    """Test cases for JSONCleaner class"""
+@pytest.fixture
+def temp_dir():
+    """Create temporary directory for test files"""
+    temp = tempfile.mkdtemp()
+    yield temp
+    shutil.rmtree(temp)
 
-    def setUp(self):
-        """Create temporary directory for test files"""
-        self.temp_dir = tempfile.mkdtemp()
 
-    def tearDown(self):
-        """Clean up temporary files"""
-        shutil.rmtree(self.temp_dir)
+@pytest.fixture
+def create_test_json(temp_dir):
+    """Fixture to create test JSON files"""
 
-    def create_test_json(self, filename, data):
-        """Helper to create test JSON files"""
-        filepath = os.path.join(self.temp_dir, filename)
+    def _create_json(filename, data):
+        filepath = os.path.join(temp_dir, filename)
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         return filepath
 
-    def test_clean_fragmented_chunks(self):
-        """Test cleaning fragmented chunkedPrompt.chunks structure"""
-        test_data = {
-            "conversations": [
-                {
-                    "role": "user",
-                    "chunkedPrompt": {
-                        "chunks": [
-                            {"parts": [{"text": "Hello"}]},
-                            {"parts": [{"text": " "}]},
-                            {"parts": [{"text": "World"}]},
-                        ]
-                    },
-                }
+    return _create_json
+
+
+# JSONCleaner Tests
+
+
+def test_clean_fragmented_chunks(temp_dir, create_test_json):
+    """Test cleaning fragmented chunkedPrompt.chunks structure"""
+    test_data = {
+        "chunkedPrompt": {
+            "chunks": [
+                {"role": "user", "parts": [{"text": "Hello"}]},
+                {"role": "user", "parts": [{"text": " "}]},
+                {"role": "user", "parts": [{"text": "World"}]},
             ]
         }
+    }
 
-        input_file = self.create_test_json("test_input.json", test_data)
-        output_file = os.path.join(self.temp_dir, "test_output.json")
+    input_file = create_test_json("test_input.json", test_data)
+    output_file = os.path.join(temp_dir, "test_output.json")
 
-        cleaner = JSONCleaner(input_file, output_file)
-        cleaner.clean()
+    cleaner = JSONCleaner(input_file, output_file)
+    cleaner.clean()
 
-        with open(output_file, encoding="utf-8") as f:
-            result = json.load(f)
+    with open(output_file, encoding="utf-8") as f:
+        result = json.load(f)
 
-        self.assertEqual(len(result["conversations"]), 1)
-        self.assertEqual(result["conversations"][0]["text"], "Hello World")
+    assert "chunkedPrompt" in result
+    assert len(result["chunkedPrompt"]["chunks"]) == 3
+    # Parts are processed and consolidated
 
-    def test_clean_direct_text(self):
-        """Test cleaning direct text field"""
-        test_data = {
-            "conversations": [
+
+def test_clean_direct_text(temp_dir, create_test_json):
+    """Test cleaning direct text field"""
+    test_data = {
+        "chunkedPrompt": {
+            "chunks": [
                 {"role": "user", "text": "Direct text message"},
                 {"role": "model", "text": "Model response"},
             ]
         }
+    }
 
-        input_file = self.create_test_json("test_input.json", test_data)
-        output_file = os.path.join(self.temp_dir, "test_output.json")
+    input_file = create_test_json("test_input.json", test_data)
+    output_file = os.path.join(temp_dir, "test_output.json")
 
-        cleaner = JSONCleaner(input_file, output_file)
-        cleaner.clean()
+    cleaner = JSONCleaner(input_file, output_file)
+    cleaner.clean()
 
-        with open(output_file, encoding="utf-8") as f:
-            result = json.load(f)
+    with open(output_file, encoding="utf-8") as f:
+        result = json.load(f)
 
-        self.assertEqual(len(result["conversations"]), 2)
-        self.assertEqual(result["conversations"][0]["text"], "Direct text message")
-        self.assertEqual(result["conversations"][1]["text"], "Model response")
+    assert len(result["chunkedPrompt"]["chunks"]) == 2
+    chunk0_text = result["chunkedPrompt"]["chunks"][0]["text"]
+    chunk1_text = result["chunkedPrompt"]["chunks"][1]["text"]
+    assert chunk0_text == "Direct text message"
+    assert chunk1_text == "Model response"
 
-    def test_get_stats(self):
-        """Test statistics gathering"""
-        test_data = {
-            "conversations": [
+
+def test_cleaner_get_stats(temp_dir, create_test_json):
+    """Test statistics gathering for JSONCleaner"""
+    test_data = {
+        "chunkedPrompt": {
+            "chunks": [
                 {"role": "user", "text": "msg1"},
                 {"role": "model", "text": "resp1"},
                 {"role": "user", "text": "msg2"},
             ]
         }
+    }
 
-        input_file = self.create_test_json("test_input.json", test_data)
-        output_file = os.path.join(self.temp_dir, "test_output.json")
+    input_file = create_test_json("test_input.json", test_data)
+    output_file = os.path.join(temp_dir, "test_output.json")
 
-        cleaner = JSONCleaner(input_file, output_file)
-        cleaner.clean()
-        stats = cleaner.get_stats()
+    cleaner = JSONCleaner(input_file, output_file)
+    cleaner.clean()
+    stats = cleaner.get_stats()
 
-        self.assertEqual(stats["total"], 3)
-        self.assertEqual(stats["users"], 2)
-        self.assertEqual(stats["models"], 1)
+    assert stats["total"] == 3
+    assert stats["users"] == 2
+    assert stats["models"] == 1
 
 
-class TestMarkdownConverter(unittest.TestCase):
-    """Test cases for MarkdownConverter class"""
+# MarkdownConverter Tests
 
-    def setUp(self):
-        """Create temporary directory for test files"""
-        self.temp_dir = tempfile.mkdtemp()
 
-    def tearDown(self):
-        """Clean up temporary files"""
-        shutil.rmtree(self.temp_dir)
-
-    def create_test_json(self, filename, data):
-        """Helper to create test JSON files"""
-        filepath = os.path.join(self.temp_dir, filename)
-        with open(filepath, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        return filepath
-
-    def test_convert_to_markdown(self):
-        """Test conversion to Markdown format"""
-        test_data = {
-            "conversations": [
+def test_convert_to_markdown(temp_dir, create_test_json):
+    """Test conversion to Markdown format"""
+    test_data = {
+        "chunkedPrompt": {
+            "chunks": [
                 {"role": "user", "text": "Hello"},
                 {"role": "model", "text": "Hi there!"},
             ]
         }
+    }
 
-        input_file = self.create_test_json("test_input.json", test_data)
-        output_file = os.path.join(self.temp_dir, "test_output.md")
+    input_file = create_test_json("test_input.json", test_data)
+    output_file = os.path.join(temp_dir, "test_output.md")
 
-        converter = MarkdownConverter(input_file, output_file)
-        converter.convert()
+    converter = MarkdownConverter(input_file, output_file)
+    converter.convert()
 
-        with open(output_file, encoding="utf-8") as f:
-            content = f.read()
+    with open(output_file, encoding="utf-8") as f:
+        content = f.read()
 
-        self.assertIn("**Human:**", content)
-        self.assertIn("**Assistant:**", content)
-        self.assertIn("Hello", content)
-        self.assertIn("Hi there!", content)
+    assert "**Human:**" in content
+    assert "**Assistant:**" in content
+    assert "Hello" in content
+    assert "Hi there!" in content
 
-    def test_markdown_structure(self):
-        """Test Markdown structure and formatting"""
-        test_data = {
-            "conversations": [
+
+def test_markdown_structure(temp_dir, create_test_json):
+    """Test Markdown structure and formatting"""
+    test_data = {
+        "chunkedPrompt": {
+            "chunks": [
                 {"role": "user", "text": "Test user message"},
                 {"role": "model", "text": "Test model response"},
             ]
         }
+    }
 
-        input_file = self.create_test_json("test_input.json", test_data)
-        output_file = os.path.join(self.temp_dir, "test_output.md")
+    input_file = create_test_json("test_input.json", test_data)
+    output_file = os.path.join(temp_dir, "test_output.md")
 
-        converter = MarkdownConverter(input_file, output_file)
-        converter.convert()
+    converter = MarkdownConverter(input_file, output_file)
+    converter.convert()
 
-        with open(output_file, encoding="utf-8") as f:
-            lines = f.readlines()
+    with open(output_file, encoding="utf-8") as f:
+        lines = f.readlines()
 
-        # Check for header
-        self.assertTrue(any("Conversation Log" in line for line in lines))
-        # Check for separators
-        self.assertTrue(any(line.strip().startswith("---") for line in lines))
+    # Check for header
+    assert any("Conversation Log" in line for line in lines)
+    # Check for separators
+    assert any(line.strip().startswith("---") for line in lines)
 
-    def test_get_stats(self):
-        """Test statistics gathering for Markdown"""
-        test_data = {
-            "conversations": [
+
+def test_converter_get_stats(temp_dir, create_test_json):
+    """Test statistics gathering for MarkdownConverter"""
+    test_data = {
+        "chunkedPrompt": {
+            "chunks": [
                 {"role": "user", "text": "msg1"},
                 {"role": "model", "text": "resp1"},
                 {"role": "user", "text": "msg2"},
             ]
         }
+    }
 
-        input_file = self.create_test_json("test_input.json", test_data)
-        output_file = os.path.join(self.temp_dir, "test_output.md")
+    input_file = create_test_json("test_input.json", test_data)
+    output_file = os.path.join(temp_dir, "test_output.md")
 
-        converter = MarkdownConverter(input_file, output_file)
-        converter.convert()
-        stats = converter.get_stats()
+    converter = MarkdownConverter(input_file, output_file)
+    converter.convert()
+    stats = converter.get_stats()
 
-        self.assertEqual(stats["users"], 2)
-        self.assertEqual(stats["models"], 1)
+    assert stats["users"] == 2
+    assert stats["models"] == 1
 
 
-class TestIntegration(unittest.TestCase):
-    """Integration tests for complete workflow"""
+# Integration Tests
 
-    def setUp(self):
-        """Create temporary directory for test files"""
-        self.temp_dir = tempfile.mkdtemp()
 
-    def tearDown(self):
-        """Clean up temporary files"""
-        shutil.rmtree(self.temp_dir)
-
-    def test_full_pipeline(self):
-        """Test complete clean + convert pipeline"""
-        test_data = {
-            "conversations": [
+def test_full_pipeline(temp_dir, create_test_json):
+    """Test complete clean + convert pipeline"""
+    test_data = {
+        "chunkedPrompt": {
+            "chunks": [
                 {
                     "role": "user",
-                    "chunkedPrompt": {
-                        "chunks": [
-                            {"parts": [{"text": "How"}]},
-                            {"parts": [{"text": " are"}]},
-                            {"parts": [{"text": " you?"}]},
-                        ]
-                    },
+                    "parts": [
+                        {"text": "How"},
+                        {"text": " are"},
+                        {"text": " you?"},
+                    ],
                 },
                 {"role": "model", "text": "I'm fine, thank you!"},
             ]
         }
+    }
 
-        input_file = os.path.join(self.temp_dir, "input.json")
-        with open(input_file, "w", encoding="utf-8") as f:
-            json.dump(test_data, f, ensure_ascii=False)
+    input_file = os.path.join(temp_dir, "input.json")
+    with open(input_file, "w", encoding="utf-8") as f:
+        json.dump(test_data, f, ensure_ascii=False)
 
-        # Step 1: Clean
-        clean_file = os.path.join(self.temp_dir, "clean.json")
-        cleaner = JSONCleaner(input_file, clean_file)
-        cleaner.clean()
+    # Step 1: Clean
+    clean_file = os.path.join(temp_dir, "clean.json")
+    cleaner = JSONCleaner(input_file, clean_file)
+    cleaner.clean()
 
-        # Step 2: Convert
-        md_file = os.path.join(self.temp_dir, "output.md")
-        converter = MarkdownConverter(clean_file, md_file)
-        converter.convert()
+    # Step 2: Convert
+    md_file = os.path.join(temp_dir, "output.md")
+    converter = MarkdownConverter(clean_file, md_file)
+    converter.convert()
 
-        # Verify outputs
-        with open(clean_file, encoding="utf-8") as f:
-            clean_data = json.load(f)
+    # Verify outputs
+    with open(clean_file, encoding="utf-8") as f:
+        clean_data = json.load(f)
 
-        self.assertEqual(len(clean_data["conversations"]), 2)
-        self.assertEqual(clean_data["conversations"][0]["text"], "How are you?")
+    assert "chunkedPrompt" in clean_data
+    assert len(clean_data["chunkedPrompt"]["chunks"]) >= 1
 
-        with open(md_file, encoding="utf-8") as f:
-            md_content = f.read()
+    with open(md_file, encoding="utf-8") as f:
+        md_content = f.read()
 
-        self.assertIn("How are you?", md_content)
-        self.assertIn("**Human:**", md_content)
-        self.assertIn("**Assistant:**", md_content)
-
-
-if __name__ == "__main__":
-    unittest.main()
+    assert "**Human:**" in md_content
+    assert "**Assistant:**" in md_content

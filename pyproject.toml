@@ -46,7 +46,7 @@ Issues = "https://github.com/cagedbird043/convo_sync/issues"
 
 [tool.ruff]
 line-length = 120
-target-version = "py311"
+target-version = "py312"
 exclude = [
     ".eggs",
     ".git",
@@ -59,28 +59,17 @@ exclude = [
 ]
 
 [tool.ruff.lint]
-select = [
-    "E",   # pycodestyle errors
-    "W",   # pycodestyle warnings
-    "F",   # pyflakes
-    "I",   # isort
-    "B",   # flake8-bugbear
-    "C4",  # flake8-comprehensions
-    "UP",  # pyupgrade
-    "ARG", # flake8-unused-arguments
-    "SIM", # flake8-simplify
-    "PL",  # pylint
-]
 ignore = [
-    "E501",    # line too long (handled by formatter)
-    "PLR0913", # too many arguments
+    "D100", # Missing module docstring
+    "D104", # Missing package docstring
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["PLR2004", "S101", "ARG001"]
+"__init__.py" = ["F401"]
+"tests/*" = ["PLR2004", "S101", "ARG001", "E402"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true
@@ -129,3 +118,73 @@ exclude_lines = [
 [tool.bandit]
 exclude_dirs = ["tests", ".venv", "build", "dist"]
 skips = ["B101"]
+
+[tool.pixi.workspace]
+channels = ["conda-forge"]
+platforms = ["linux-64", "osx-64", "osx-arm64", "win-64"]
+
+[tool.pixi.dependencies]
+uv = ">=0.1.0"
+
+[tool.pixi.feature.dev.dependencies]
+pytest = ">=8.0"
+pytest-cov = ">=4.1"
+ruff = ">=0.3"
+mypy = ">=1.8"
+pre-commit = ">=3.6"
+bandit = ">=1.8"
+tox = ">=4.0"
+
+[tool.pixi.feature.docs.dependencies]
+mkdocs = ">=1.5"
+mkdocs-material = ">=9.5"
+mkdocstrings-python = ">=1.7"
+
+[tool.pixi.feature.py312.dependencies]
+python = "3.12.*"
+
+[tool.pixi.feature.py313.dependencies]
+python = "3.13.*"
+
+[tool.pixi.feature.py314.dependencies]
+python = "3.14.*"
+
+[tool.pixi.environments]
+default = { features = ["dev", "py313"] }
+py312 = { features = ["dev", "py312"] }
+py313 = { features = ["dev", "py313"] }
+py314 = { features = ["dev", "py314"] }
+docs = { features = ["docs", "py313"] }
+prod = { features = ["py313"] }
+
+[tool.pixi.tasks]
+format = "ruff format src/ tests/ convo_sync.py --line-length=120"
+lint = "ruff check src/ tests/ convo_sync.py --line-length=120"
+lint-fix = "ruff check src/ tests/ convo_sync.py --line-length=120 --fix"
+typecheck = "mypy src/ convo_sync.py"
+security = "bandit -r src/ convo_sync.py -ll"
+test = "python -m pytest tests/ -v --cov=src --cov-report=term-missing --cov-report=html -p no:requests_mock"
+test-all-versions = "echo '=== Testing Python 3.12 ===' && pixi run -e py312 test && echo '=== Testing Python 3.13 ===' && pixi run -e py313 test && echo '=== Testing Python 3.14 ===' && pixi run -e py314 test && echo '=== All Python versions tested successfully! ==='"
+python-version = "python --version && python -c 'import sys; print(f\"Python {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}\")'"
+show-versions = "echo '=== Python 3.12 ===' && pixi run -e py312 python-version && echo '=== Python 3.13 ===' && pixi run -e py313 python-version && echo '=== Python 3.14 ===' && pixi run -e py314 python-version"
+check = { depends-on = ["format", "lint", "typecheck", "test"] }
+check-all = { depends-on = ["format", "lint", "typecheck", "security", "test"] }
+check-compat = { depends-on = [
+    "format",
+    "lint",
+    "typecheck",
+    "security",
+    "test-all-versions",
+] }
+install = "uv sync --all-extras"
+run-clean = "python convo_sync.py clean"
+run-convert = "python convo_sync.py convert"
+run-pipeline = "python convo_sync.py pipeline"
+docs-serve = "mkdocs serve"
+docs-build = "mkdocs build"
+docs-deploy = "mkdocs gh-deploy --force"
+hooks-install = "pre-commit install"
+hooks-run = "pre-commit run --all-files"
+build = "uv build"
+clean-build = "rm -rf build/ dist/ *.egg-info htmlcov/ .coverage .pytest_cache/ .mypy_cache/ .ruff_cache/"
+build-check = { depends-on = ["clean-build", "check-compat", "build"] }

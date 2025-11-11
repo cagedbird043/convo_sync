@@ -129,10 +129,19 @@ class MarkdownConverter:
 
         if "chunkedPrompt" in data and "chunks" in data["chunkedPrompt"]:
             # Convert Google AI Studio format to standard format
-            return [
-                {"role": chunk.get("role", "unknown"), "text": chunk.get("text", "")}
-                for chunk in data["chunkedPrompt"]["chunks"]
-            ]
+            conversations = []
+            for chunk in data["chunkedPrompt"]["chunks"]:
+                role = chunk.get("role", "unknown")
+                # Try to get text, or merge from parts
+                if "text" in chunk:
+                    text = chunk["text"]
+                elif "parts" in chunk:
+                    # Merge parts into text
+                    text = "".join(part.get("text", "") for part in chunk["parts"])
+                else:
+                    text = ""
+                conversations.append({"role": role, "text": text})
+            return conversations
 
         msg = "JSON file format incorrect: neither 'conversations' nor 'chunkedPrompt.chunks' found"
         raise ValueError(msg)

@@ -1,6 +1,0 @@
-# ConvoSync - No external dependencies required!
-# Standard library only - Pure Python implementation
-
-# Optional: for development and testing
-pytest>=7.0
-pytest-cov>=3.0
