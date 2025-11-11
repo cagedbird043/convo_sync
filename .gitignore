@@ -66,6 +66,9 @@ venv.bak/
 !examples/*.json
 !tests/*.json
 *.md
+!README.md
+!CONTRIBUTING.md
+!CODE_STANDARDS.md
 
 # Temporary files
 *.tmp
