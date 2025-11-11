@@ -107,6 +107,36 @@ class MarkdownConverter:
 
         return text.strip()
 
+    def _load_conversations(self, data):
+        """
+        Load conversations from JSON data.
+
+        Supports both formats:
+        - Standard format with 'conversations' field
+        - Google AI Studio format with 'chunkedPrompt.chunks' field
+
+        Args:
+            data: Parsed JSON data
+
+        Returns:
+            List of conversation dicts with 'role' and 'text' fields
+
+        Raises:
+            ValueError: If data format is not recognized
+        """
+        if "conversations" in data:
+            return data["conversations"]
+
+        if "chunkedPrompt" in data and "chunks" in data["chunkedPrompt"]:
+            # Convert Google AI Studio format to standard format
+            return [
+                {"role": chunk.get("role", "unknown"), "text": chunk.get("text", "")}
+                for chunk in data["chunkedPrompt"]["chunks"]
+            ]
+
+        msg = "JSON file format incorrect: neither 'conversations' nor 'chunkedPrompt.chunks' found"
+        raise ValueError(msg)
+
     def convert(self):
         """
         Convert cleaned JSON to Markdown format with:
@@ -114,6 +144,10 @@ class MarkdownConverter:
         - Proper formatting to avoid AI learning confusion
         - Code block normalization
         - Optional thinking process removal
+
+        Supports both formats:
+        - Standard format with 'conversations' field
+        - Google AI Studio format with 'chunkedPrompt.chunks' field
         """
         try:
             with open(self.input_json_file, encoding="utf-8") as f:
@@ -124,10 +158,7 @@ class MarkdownConverter:
             msg = f"Input file not found: {self.input_json_file}"
             raise FileNotFoundError(msg) from e
 
-        if "conversations" not in data:
-            raise ValueError("JSON file format incorrect: 'conversations' field not found")
-
-        conversations = data["conversations"]
+        conversations = self._load_conversations(data)
         self.message_counter = {"user": 0, "model": 0}
 
         with open(self.output_md_file, "w", encoding="utf-8") as f:
