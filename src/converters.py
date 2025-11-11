@@ -45,6 +45,7 @@ class MarkdownConverter:
         Returns:
             Text with normalized code blocks
         """
+
         # First pass: normalize code blocks with any number of backticks
         # Match opening backticks (3+), optional language, content,
         # closing backticks
@@ -124,9 +125,7 @@ class MarkdownConverter:
             raise FileNotFoundError(msg)
 
         if "conversations" not in data:
-            raise ValueError(
-                "JSON file format incorrect: 'conversations' field not found"
-            )
+            raise ValueError("JSON file format incorrect: 'conversations' field not found")
 
         conversations = data["conversations"]
         self.message_counter = {"user": 0, "model": 0}
@@ -154,7 +153,7 @@ class MarkdownConverter:
                 if not text.strip():
                     continue
 
-        # Normalize code blocks
+                # Normalize code blocks
                 text = self._normalize_code_blocks(text)
 
                 # Increment counter
@@ -176,21 +175,21 @@ class MarkdownConverter:
         f.write("**Human:**\n\n")
         f.write(text)
         f.write("\n\n")
-        f.write("---\n\n")
+        f.write("---\n---\n\n")
 
     def _write_assistant_message(self, f, idx, text):
         """Write assistant message in standard format."""
         f.write("**Assistant:**\n\n")
         f.write(text)
         f.write("\n\n")
-        f.write("---\n\n")
+        f.write("---\n---\n\n")
 
     def _write_other_message(self, f, idx, role, text):
         """Write other role message in standard format."""
         f.write(f"**{role.capitalize()}:**\n\n")
         f.write(text)
         f.write("\n\n")
-        f.write("---\n\n")
+        f.write("---\n---\n\n")
 
     def get_stats(self):
         """Get statistics about the conversion."""
