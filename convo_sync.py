@@ -3,283 +3,208 @@
 ConvoSync CLI - Command-line interface for conversation data processing
 """
 
-import argparse
-import sys
+from pathlib import Path
+from typing import Optional
+
+import typer
+from typing_extensions import Annotated
 
 from src.cleaners import JSONCleaner
 from src.converters import MarkdownConverter
 
-
-def main():
-    # Check if first arg is a subcommand or a file
-    # This allows both "python convo_sync.py file.json" and
-    # "python convo_sync.py clean file.json"
-    has_subcommand = len(sys.argv) > 1 and sys.argv[1] in [
-        "clean",
-        "convert",
-        "pipeline",
-    ]
-
-    parser = argparse.ArgumentParser(
-        description="ConvoSync - AI Conversation Data Processing Toolkit",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-            Examples:
-            # Default: Full pipeline (clean + convert with thinking removed)
-            python convo_sync.py input.json
-
-            # Keep AI thinking process
-            python convo_sync.py input.json --no-thinking
-
-            # Show statistics
-            python convo_sync.py input.json --stats
-
-            # Advanced: Individual commands
-            python convo_sync.py clean input.json -o output.json
-            python convo_sync.py convert input.json -o output.md
-            python convo_sync.py pipeline input.json
-        """,
-    )
-
-    if not has_subcommand:
-        # Default pipeline mode arguments
-        parser.add_argument("input", help="Input JSON file")
-        parser.add_argument(
-            "--no-thinking",
-            action="store_true",
-            help="Keep AI thinking process (default: remove)",
-        )
-        parser.add_argument("--stats", action="store_true", help="Show statistics")
-        parser.add_argument("-c", "--clean-output", help="Clean JSON output file")
-        parser.add_argument("-m", "--md-output", help="Markdown output file")
-
-        args = parser.parse_args()
-        handle_default_pipeline(args)
-        return
-
-    # Subcommand mode
-    subparsers = parser.add_subparsers(dest="command", help="Command to run")
-
-    # Clean command
-    clean_parser = subparsers.add_parser("clean", help="Clean and normalize JSON data")
-    clean_parser.add_argument("input", help="Input JSON file")
-    clean_parser.add_argument("-o", "--output", help="Output JSON file")
-    clean_parser.add_argument(
-        "--keep-thinking",
-        action="store_true",
-        help="Keep AI thinking process (default: remove)",
-    )
-    clean_parser.add_argument(
-        "--keep-code",
-        action="store_true",
-        help="Keep code blocks (default: remove)",
-    )
-    clean_parser.add_argument("--stats", action="store_true", help="Show statistics")
-
-    # Convert command
-    convert_parser = subparsers.add_parser("convert", help="Convert JSON to Markdown")
-    convert_parser.add_argument("input", help="Input JSON file (cleaned format)")
-    convert_parser.add_argument("-o", "--output", help="Output Markdown file")
-    convert_parser.add_argument(
-        "--no-thinking",
-        action="store_true",
-        help="Keep AI thinking process (default: remove)",
-    )
-    convert_parser.add_argument("--stats", action="store_true", help="Show statistics")
-
-    # Pipeline command
-    pipeline_parser = subparsers.add_parser("pipeline", help="Run full clean->convert pipeline")
-    pipeline_parser.add_argument("input", help="Input JSON file")
-    pipeline_parser.add_argument("-c", "--clean-output", help="Clean JSON output file")
-    pipeline_parser.add_argument("-m", "--md-output", help="Markdown output file")
-    pipeline_parser.add_argument(
-        "--keep-thinking",
-        action="store_true",
-        help="Keep AI thinking process (default: remove)",
-    )
-    pipeline_parser.add_argument(
-        "--keep-code",
-        action="store_true",
-        help="Keep code blocks (default: remove)",
-    )
-    pipeline_parser.add_argument(
-        "--no-thinking",
-        action="store_true",
-        help="Keep AI thinking process (default: remove) [DEPRECATED: use --keep-thinking]",
-    )
-    pipeline_parser.add_argument("--stats", action="store_true", help="Show statistics")
-
-    args = parser.parse_args()
-
-    # Default behavior: if no command specified but input provided,
-    # run full pipeline
-    try:
-        if not args.command:
-            if args.input:
-                # Run default pipeline
-                handle_default_pipeline(args)
-            else:
-                parser.print_help()
-                sys.exit(1)
-        elif args.command == "clean":
-            handle_clean(args)
-        elif args.command == "convert":
-            handle_convert(args)
-        elif args.command == "pipeline":
-            handle_pipeline(args)
-    except Exception as e:
-        print(f"❌ Error: {e}", file=sys.stderr)
-        sys.exit(1)
+app = typer.Typer(
+    name="convo_sync",
+    help="🚀 AI Conversation Data Processing Toolkit - Clean and convert Google AI Studio conversation data",
+    add_completion=False,
+    rich_markup_mode="rich",
+)
 
 
-def handle_default_pipeline(args):
+@app.command()
+def clean(
+    input_file: Annotated[Path, typer.Argument(help="Input JSON file to clean")],
+    output: Annotated[
+        Optional[Path],
+        typer.Option("--output", "-o", help="Output JSON file (default: input.cleaned.json)"),
+    ] = None,
+    keep_thinking: Annotated[
+        bool,
+        typer.Option("--keep-thinking", help="Keep AI thinking process (default: remove)"),
+    ] = False,
+    keep_code: Annotated[
+        bool,
+        typer.Option("--keep-code", help="Keep code blocks (default: remove)"),
+    ] = False,
+    stats: Annotated[
+        bool,
+        typer.Option("--stats", help="Show statistics after cleaning"),
+    ] = False,
+) -> None:
     """
-    Handle default pipeline: clean + convert with thinking removed.
-    This is the simplified, most common use case.
+    🧹 Clean and normalize JSON data from Google AI Studio.
+
+    Removes thinking process and code blocks by default to reduce token usage.
     """
-    input_file = args.input
+    typer.echo(f"🔄 Cleaning JSON file: {input_file}")
 
-    print("🚀 Running ConvoSync Pipeline...")
-    print(f"📄 Input: {input_file}")
+    if not input_file.exists():
+        typer.secho(f"❌ Error: File not found: {input_file}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(1)
 
-    # 默认移除思考和代码块
-    remove_thinking = not args.no_thinking
-    remove_code = True  # 默认模式总是移除代码块
+    output_file = output or input_file.with_suffix(".cleaned.json")
+    remove_thinking = not keep_thinking
+    remove_code = not keep_code
+
+    cleaner = JSONCleaner(
+        str(input_file),
+        str(output_file),
+        remove_thinking=remove_thinking,
+        remove_code_blocks=remove_code,
+    )
+    cleaner.clean()
+
+    typer.secho(f"✅ Cleaned JSON saved to: {output_file}", fg=typer.colors.GREEN)
+    if remove_thinking:
+        typer.echo("   🧠 Thinking process removed")
+    if remove_code:
+        typer.echo("   💾 Code blocks removed")
+
+    if stats:
+        stats_data = cleaner.get_stats()
+        typer.echo("\n📊 Statistics:")
+        typer.echo(f"  Total chunks: {stats_data['total']}")
+        typer.echo(f"  👤 User messages: {stats_data['users']}")
+        typer.echo(f"  🤖 Model messages: {stats_data['models']}")
+        typer.echo(f"  📎 File references: {stats_data['files']}")
+
+
+@app.command()
+def convert(
+    input_file: Annotated[Path, typer.Argument(help="Input JSON file (cleaned format)")],
+    output: Annotated[
+        Optional[Path],
+        typer.Option("--output", "-o", help="Output Markdown file (default: input.md)"),
+    ] = None,
+    keep_thinking: Annotated[
+        bool,
+        typer.Option("--keep-thinking", help="Keep AI thinking process (default: remove)"),
+    ] = False,
+    stats: Annotated[
+        bool,
+        typer.Option("--stats", help="Show statistics after conversion"),
+    ] = False,
+) -> None:
+    """
+    📝 Convert cleaned JSON to Markdown format.
+
+    Generates human-readable conversation records.
+    """
+    typer.echo(f"🔄 Converting to Markdown: {input_file}")
+
+    if not input_file.exists():
+        typer.secho(f"❌ Error: File not found: {input_file}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(1)
+
+    output_file = output or input_file.with_suffix(".md")
+    remove_thinking = not keep_thinking
+
+    converter = MarkdownConverter(str(input_file), str(output_file), remove_thinking)
+    result_file = converter.convert()
+
+    typer.secho(f"✅ Markdown saved to: {result_file}", fg=typer.colors.GREEN)
+    if remove_thinking:
+        typer.echo("   (AI thinking process removed)")
+
+    if stats:
+        stats_data = converter.get_stats()
+        typer.echo("\n📊 Statistics:")
+        typer.echo(f"  Total conversations: {stats_data['total']}")
+        typer.echo(f"  👤 User messages: {stats_data['users']}")
+        typer.echo(f"  🤖 Model messages: {stats_data['models']}")
+
+
+@app.command()
+def pipeline(
+    input_file: Annotated[Path, typer.Argument(help="Input JSON file")],
+    clean_output: Annotated[
+        Optional[Path],
+        typer.Option("--clean-output", "-c", help="Clean JSON output file (default: input.cleaned.json)"),
+    ] = None,
+    md_output: Annotated[
+        Optional[Path],
+        typer.Option("--md-output", "-m", help="Markdown output file (default: input.md)"),
+    ] = None,
+    keep_thinking: Annotated[
+        bool,
+        typer.Option("--keep-thinking", help="Keep AI thinking process (default: remove)"),
+    ] = False,
+    keep_code: Annotated[
+        bool,
+        typer.Option("--keep-code", help="Keep code blocks (default: remove)"),
+    ] = False,
+    stats: Annotated[
+        bool,
+        typer.Option("--stats", help="Show statistics after each step"),
+    ] = False,
+) -> None:
+    """
+    ⚡ Run full clean→convert pipeline.
+
+    This is the recommended workflow for most users.
+    """
+    typer.secho("🚀 Running ConvoSync Pipeline...", fg=typer.colors.BLUE, bold=True)
+    typer.echo(f"📄 Input: {input_file}")
+
+    if not input_file.exists():
+        typer.secho(f"❌ Error: File not found: {input_file}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(1)
+
+    remove_thinking = not keep_thinking
+    remove_code = not keep_code
 
     # Step 1: Clean
-    print("\n📋 Step 1: Cleaning JSON...")
-    clean_output = args.clean_output or input_file.replace(".json", ".cleaned.json")
+    typer.echo("\n📋 Step 1: Cleaning JSON...")
+    clean_out = clean_output or input_file.with_suffix(".cleaned.json")
     cleaner = JSONCleaner(
-        input_file,
-        clean_output,
+        str(input_file),
+        str(clean_out),
         remove_thinking=remove_thinking,
         remove_code_blocks=remove_code,
     )
     cleaner.clean()
-    print(f"✅ Cleaned: {clean_output}")
+    typer.secho(f"✅ Cleaned: {clean_out}", fg=typer.colors.GREEN)
     if remove_thinking:
-        print("   🧠 Thinking process removed")
+        typer.echo("   🧠 Thinking process removed")
     if remove_code:
-        print("   💾 Code blocks removed")
-
-    # Step 2: Convert to Markdown
-    print("\n📋 Step 2: Converting to Markdown...")
-    md_output = args.md_output or input_file.replace(".json", ".md")
-    converter = MarkdownConverter(clean_output, md_output, False)  # 已在clean阶段移除
-    converter.convert()
-    print(f"✅ Markdown: {md_output}")
-
-    # Statistics
-    if args.stats:
-        print("\n📊 Statistics:")
-        clean_stats = cleaner.get_stats()
-        print(f"  Cleaned chunks: {clean_stats['total']}")
-        print(f"    - 👤 Users: {clean_stats['users']}")
-        print(f"    - 🤖 Models: {clean_stats['models']}")
-        print(f"    - 📎 Files: {clean_stats['files']}")
-
-        md_stats = converter.get_stats()
-        print(f"  Markdown output: {md_stats['total']} entries")
-        print(f"    - 👤 Users: {md_stats['users']}")
-        print(f"    - 🤖 Models: {md_stats['models']}")
-
-    print("\n✨ Done! Your conversation is ready.")
-
-
-def handle_clean(args):
-    """Handle clean command."""
-    print(f"🔄 Cleaning JSON file: {args.input}")
-
-    remove_thinking = not args.keep_thinking
-    remove_code = not args.keep_code
-
-    cleaner = JSONCleaner(
-        args.input,
-        args.output,
-        remove_thinking=remove_thinking,
-        remove_code_blocks=remove_code,
-    )
-    cleaner.clean()
-
-    print(f"✅ Cleaned JSON saved to: {cleaner.output_file}")
-    if remove_thinking:
-        print("   🧠 Thinking process removed")
-    if remove_code:
-        print("   💾 Code blocks removed")
-
-    if args.stats:
-        stats = cleaner.get_stats()
-        print("\n📊 Statistics:")
-        print(f"  Total chunks: {stats['total']}")
-        print(f"  👤 User messages: {stats['users']}")
-        print(f"  🤖 Model messages: {stats['models']}")
-        print(f"  📎 File references: {stats['files']}")
-
-
-def handle_convert(args):
-    """Handle convert command."""
-    print(f"🔄 Converting to Markdown: {args.input}")
-
-    # Default is to remove thinking (unless --no-thinking is set)
-    remove_thinking = not args.no_thinking
-    converter = MarkdownConverter(args.input, args.output, remove_thinking)
-    output_file = converter.convert()
-
-    print(f"✅ Markdown saved to: {output_file}")
-    if remove_thinking:
-        print("   (AI thinking process removed)")
-
-    if args.stats:
-        stats = converter.get_stats()
-        print("\n📊 Statistics:")
-        print(f"  Total conversations: {stats['total']}")
-        print(f"  👤 User messages: {stats['users']}")
-        print(f"  🤖 Model messages: {stats['models']}")
-
-
-def handle_pipeline(args):
-    """Handle full pipeline command."""
-    input_file = args.input
-
-    # 兼容旧参数
-    remove_thinking = not (args.keep_thinking or args.no_thinking)
-    remove_code = not args.keep_code
-
-    # Step 1: Clean
-    print("📋 Step 1: Cleaning JSON...")
-    clean_output = args.clean_output or input_file.replace(".json", ".cleaned.json")
-    cleaner = JSONCleaner(
-        input_file,
-        clean_output,
-        remove_thinking=remove_thinking,
-        remove_code_blocks=remove_code,
-    )
-    cleaner.clean()
-    print(f"✅ Cleaned: {clean_output}")
-    if remove_thinking:
-        print("   🧠 Thinking process removed")
-    if remove_code:
-        print("   💾 Code blocks removed")
+        typer.echo("   💾 Code blocks removed")
 
     # Step 2: Convert
-    print("\n📋 Step 2: Converting to Markdown...")
-    md_output = args.md_output or input_file.replace(".json", ".md")
-    converter = MarkdownConverter(clean_output, md_output, False)  # 已在clean阶段移除
+    typer.echo("\n📋 Step 2: Converting to Markdown...")
+    md_out = md_output or input_file.with_suffix(".md")
+    converter = MarkdownConverter(str(clean_out), str(md_out), False)  # Already removed in clean step
     converter.convert()
-    print(f"✅ Converted: {md_output}")
+    typer.secho(f"✅ Converted: {md_out}", fg=typer.colors.GREEN)
 
-    if args.stats:
-        print("\n📊 Pipeline Statistics:")
+    # Statistics
+    if stats:
+        typer.echo("\n📊 Pipeline Statistics:")
         clean_stats = cleaner.get_stats()
-        print(f"  Cleaned chunks: {clean_stats['total']}")
-        print(f"    - 👤 Users: {clean_stats['users']}")
-        print(f"    - 🤖 Models: {clean_stats['models']}")
-        print(f"    - 📎 Files: {clean_stats['files']}")
+        typer.echo(f"  Cleaned chunks: {clean_stats['total']}")
+        typer.echo(f"    - 👤 Users: {clean_stats['users']}")
+        typer.echo(f"    - 🤖 Models: {clean_stats['models']}")
+        typer.echo(f"    - 📎 Files: {clean_stats['files']}")
 
         md_stats = converter.get_stats()
-        print(f"  Markdown output: {md_stats['total']} entries")
-        print(f"    - 👤 Users: {md_stats['users']}")
-        print(f"    - 🤖 Models: {md_stats['models']}")
+        typer.echo(f"  Markdown output: {md_stats['total']} entries")
+        typer.echo(f"    - 👤 Users: {md_stats['users']}")
+        typer.echo(f"    - 🤖 Models: {md_stats['models']}")
+
+    typer.secho("\n✨ Done! Your conversation is ready.", fg=typer.colors.GREEN, bold=True)
+
+
+def main() -> None:
+    """Entry point for the CLI application."""
+    app()
 
 
 if __name__ == "__main__":

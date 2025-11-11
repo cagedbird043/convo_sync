@@ -10,54 +10,99 @@ import re
 
 
 class JSONCleaner:
-    """Clean Google AI Studio exported JSON conversations.
+    """Clean and optimize Google AI Studio exported JSON conversations.
 
-    主要功能：
-    - 保留 runSettings 和 systemInstruction
-    - 移除 AI 思考过程（可选）
-    - 移除代码块内容（可选）
-    - 保留上传的文件引用（driveDocument）
+    This class provides intelligent cleaning of conversation data exported from
+    Google AI Studio, reducing token usage while preserving essential content.
+
+    The cleaner performs the following operations:
+        - Preserves model configuration (runSettings, systemInstruction)
+        - Removes AI thinking process chunks (optional, default: True)
+        - Removes code blocks using heuristic detection (optional, default: True)
+        - Maintains file references (driveDocument) for uploaded files
+        - Provides statistics on cleaned data
+
+    Attributes:
+        input_file (str): Path to the input JSON file.
+        output_file (str): Path to the output cleaned JSON file.
+        remove_thinking (bool): Whether to remove thinking process chunks.
+        remove_code_blocks (bool): Whether to remove detected code blocks.
+        data (dict): The loaded and processed JSON data.
+
+    Example:
+        >>> cleaner = JSONCleaner("conversation.json", remove_thinking=True)
+        >>> cleaner.clean()
+        >>> stats = cleaner.get_stats()
+        >>> print(f"Cleaned {stats['total']} chunks")
+
+    Note:
+        The cleaned JSON maintains compatibility with Google AI Studio and can
+        be re-imported after processing.
     """
 
     def __init__(
         self,
-        input_file,
-        output_file=None,
-        remove_thinking=True,
-        remove_code_blocks=True,
-    ):
-        """
-        Initialize the JSON cleaner.
+        input_file: str,
+        output_file: str | None = None,
+        remove_thinking: bool = True,
+        remove_code_blocks: bool = True,
+    ) -> None:
+        """Initialize the JSON cleaner with configuration.
 
         Args:
-            input_file: Path to input JSON file
-            output_file: Path to output JSON file (if None, uses .cleaned.json)
-            remove_thinking: Remove AI thinking process (default: True)
-            remove_code_blocks: Remove code blocks (default: True)
+            input_file: Path to the input JSON file from Google AI Studio.
+            output_file: Path for the cleaned JSON output. If None, automatically
+                generates filename by appending '.cleaned' before extension.
+            remove_thinking: If True, removes chunks marked as thinking process
+                (isThought: true) and parts with thought: true flag. Default is True.
+            remove_code_blocks: If True, applies heuristic algorithm to detect and
+                remove code blocks while preserving descriptive text. Default is True.
+
+        Raises:
+            FileNotFoundError: If input_file does not exist.
+            json.JSONDecodeError: If input_file is not valid JSON.
         """
         self.input_file = input_file
         self.output_file = output_file or input_file.replace(".json", ".cleaned.json")
         self.remove_thinking = remove_thinking
         self.remove_code_blocks = remove_code_blocks
 
-    def clean(self):
-        """
-        Clean JSON file by:
-        1. Preserving runSettings and systemInstruction
-        2. Removing thinking process (optional)
-        3. Removing code blocks (optional)
-        4. Keeping file references (driveDocument)
+    def clean(self) -> dict:
+        """Execute the cleaning process and save results.
+
+        This method orchestrates the entire cleaning workflow:
+            1. Loads the input JSON file
+            2. Processes and filters conversation data
+            3. Removes thinking process chunks (if enabled)
+            4. Removes code blocks using heuristic detection (if enabled)
+            5. Preserves model configuration and file references
+            6. Saves the cleaned data to output file
+
+        Returns:
+            dict: The cleaned conversation data dictionary with the same structure
+                as Google AI Studio format, ready for re-import.
+
+        Raises:
+            FileNotFoundError: If the input file does not exist.
+            json.JSONDecodeError: If the input file contains invalid JSON.
+            IOError: If unable to write to the output file.
+
+        Example:
+            >>> cleaner = JSONCleaner("input.json", remove_thinking=True)
+            >>> result = cleaner.clean()
+            >>> print(f"Cleaned file saved with {len(result['chunkedPrompt']['chunks'])} chunks")
         """
         data = self._load_json_file()
         cleaned_data = self._process_google_ai_studio_format(data)
         self._save_json_file(cleaned_data)
         return cleaned_data
 
-    def _load_json_file(self):
+    def _load_json_file(self) -> dict:
         """Load and parse JSON file."""
         try:
             with open(self.input_file, encoding="utf-8") as f:
-                return json.load(f)
+                data: dict = json.load(f)
+                return data
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalisd JSON file: {e}") from e
         except FileNotFoundError as e:
@@ -68,7 +113,7 @@ class JSONCleaner:
         with open(self.output_file, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
-    def _process_google_ai_studio_format(self, data):
+    def _process_google_ai_studio_format(self, data: dict) -> dict:
         """Process Google AI Studio exported JSON format.
 
         Structure:
@@ -80,7 +125,7 @@ class JSONCleaner:
           }
         }
         """
-        cleaned_data = {}
+        cleaned_data: dict = {}
 
         # 1. 保留 runSettings
         if "runSettings" in data:
@@ -292,8 +337,35 @@ class JSONCleaner:
         # 但排除常见的中文括号用法
         return bool(re.search(r"\w+\([^)]*\)", content) and not re.search(r"[\u4e00-\u9fa5]+\([^)]*\)", content))
 
-    def get_stats(self):
-        """Get statistics about the cleaned data."""
+    def get_stats(self) -> dict[str, int | bool]:
+        """Calculate statistics from the cleaned conversation data.
+
+        Analyzes the output file to provide insights about the cleaned data,
+        including message counts, file references, and applied cleaning options.
+
+        Returns:
+            dict: A dictionary containing the following statistics:
+                - total (int): Total number of conversation chunks
+                - users (int): Number of user messages
+                - models (int): Number of model (assistant) messages
+                - files (int): Number of file references (driveDocument)
+                - thinking_removed (bool): Whether thinking process was removed
+                - code_blocks_removed (bool): Whether code blocks were removed
+
+        Raises:
+            FileNotFoundError: If the output file hasn't been created yet.
+            json.JSONDecodeError: If the output file contains invalid JSON.
+
+        Example:
+            >>> cleaner = JSONCleaner("input.json")
+            >>> cleaner.clean()
+            >>> stats = cleaner.get_stats()
+            >>> print(f"Total: {stats['total']}, Users: {stats['users']}")
+            Total: 150, Users: 76
+
+        Note:
+            This method reads from the output file, so clean() must be called first.
+        """
         with open(self.output_file, encoding="utf-8") as f:
             data = json.load(f)
 

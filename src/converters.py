@@ -7,22 +7,54 @@ import re
 
 
 class MarkdownConverter:
-    """Convert cleaned JSON to clean, renderable Markdown format."""
+    """Convert cleaned JSON conversations to readable Markdown format.
+
+    This class transforms Google AI Studio conversation JSON into clean,
+    human-readable Markdown documents with proper formatting and structure.
+
+    The converter provides:
+        - Structured conversation layout with user and assistant markers
+        - Normalized code block rendering (prevents excessive backticks)
+        - Optional removal of thinking process sections
+        - Statistics tracking for message counts
+        - Clean separator lines between messages
+
+    Attributes:
+        input_json_file (str): Path to the input cleaned JSON file.
+        output_md_file (str): Path to the output Markdown file.
+        remove_thinking (bool): Whether to filter out thinking process content.
+        message_counter (dict): Tracks count of user and model messages.
+
+    Example:
+        >>> converter = MarkdownConverter("cleaned.json", "output.md")
+        >>> converter.convert()
+        >>> stats = converter.get_stats()
+        >>> print(f"Converted {stats['total']} messages to Markdown")
+
+    Note:
+        The input should be a cleaned JSON file (ideally processed by JSONCleaner)
+        to ensure optimal results and formatting.
+    """
 
     def __init__(
         self,
-        input_json_file,
-        output_md_file=None,
-        remove_thinking=True,
-    ):
-        """
-        Initialize the Markdown converter.
+        input_json_file: str,
+        output_md_file: str | None = None,
+        remove_thinking: bool = True,
+    ) -> None:
+        """Initialize the Markdown converter with file paths and options.
 
         Args:
-            input_json_file: Path to input JSON file (cleaned format)
-            output_md_file: Path to output Markdown file
-            remove_thinking: Whether to remove AI thinking process
-                sections (default: True)
+            input_json_file: Path to input JSON file in Google AI Studio format.
+                Should be a cleaned JSON (processed by JSONCleaner) for best results.
+            output_md_file: Path for the Markdown output file. If None, automatically
+                generates filename by replacing '.json' extension with '.md'.
+            remove_thinking: If True, excludes parts marked as thinking process
+                (thought: true flag) from the output. Default is True to produce
+                cleaner conversation records.
+
+        Raises:
+            FileNotFoundError: If input_json_file does not exist.
         """
         self.input_json_file = input_json_file
         default_output = input_json_file.replace(".json", ".md")
@@ -146,17 +178,37 @@ class MarkdownConverter:
         msg = "JSON file format incorrect: neither 'conversations' nor 'chunkedPrompt.chunks' found"
         raise ValueError(msg)
 
-    def convert(self):
-        """
-        Convert cleaned JSON to Markdown format with:
-        - Clear role-based sections (Human / Assistant)
-        - Proper formatting to avoid AI learning confusion
-        - Code block normalization
-        - Optional thinking process removal
+    def convert(self) -> str:
+        """Convert JSON conversation data to formatted Markdown document.
 
-        Supports both formats:
-        - Standard format with 'conversations' field
-        - Google AI Studio format with 'chunkedPrompt.chunks' field
+        This method processes the input JSON and generates a clean Markdown file
+        with proper structure, role markers, and normalized code blocks.
+
+        The conversion process includes:
+            - Extracting conversations from Google AI Studio format
+            - Creating role-based sections (👤 User / 🤖 Assistant)
+            - Normalizing code block backticks for consistent rendering
+            - Filtering thinking process sections (if enabled)
+            - Adding visual separators between messages
+            - Generating summary header with message count
+
+        Returns:
+            str: Path to the generated Markdown file.
+
+        Raises:
+            FileNotFoundError: If the input JSON file does not exist.
+            json.JSONDecodeError: If the input file contains invalid JSON.
+            IOError: If unable to write to the output file.
+
+        Example:
+            >>> converter = MarkdownConverter("input.json", "output.md")
+            >>> output_path = converter.convert()
+            >>> print(f"Markdown generated at: {output_path}")
+            Markdown generated at: output.md
+
+        Note:
+            The method automatically detects and handles both standard conversation
+            format and Google AI Studio's chunkedPrompt format.
         """
         try:
             with open(self.input_json_file, encoding="utf-8") as f:
@@ -231,8 +283,29 @@ class MarkdownConverter:
         f.write("\n\n")
         f.write("---\n---\n\n")
 
-    def get_stats(self):
-        """Get statistics about the conversion."""
+    def get_stats(self) -> dict[str, int]:
+        """Retrieve statistics from the conversion process.
+
+        Provides a summary of messages converted to Markdown, broken down by
+        role (user vs model/assistant).
+
+        Returns:
+            dict: A dictionary containing:
+                - users (int): Number of user messages converted
+                - models (int): Number of model/assistant messages converted
+                - total (int): Total number of messages in the Markdown output
+
+        Example:
+            >>> converter = MarkdownConverter("input.json")
+            >>> converter.convert()
+            >>> stats = converter.get_stats()
+            >>> print(f"Converted {stats['users']} user and {stats['models']} model messages")
+            Converted 76 user and 74 model messages
+
+        Note:
+            This method should be called after convert() to get accurate statistics.
+            The counter is reset each time convert() is called.
+        """
         return {
             "users": self.message_counter.get("user", 0),
             "models": self.message_counter.get("model", 0),
