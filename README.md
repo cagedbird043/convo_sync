@@ -7,7 +7,7 @@
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-🚀 **AI Conversation Data Processing Toolkit**
+🚀 **AI Conversation Data Processing Toolkit** - Convert and clean AI conversation data with ease.
 
 一个专业的 AI 对话数据清理、转换和管理工具集。
 
