@@ -24,7 +24,7 @@
 
 ```bash
 # Clone the repository
-git clone <repo-url>
+git clone https://github.com/cagedbird043/convo_sync.git
 cd convo_sync
 
 # No external dependencies required!
