@@ -1,0 +1,57 @@
+[project]
+name = "convo_sync"
+version = "1.0.0"
+description = "AI Conversation Data Processing Toolkit"
+channels = ["conda-forge"]
+platforms = ["linux-64", "osx-64", "osx-arm64", "win-64"]
+
+[dependencies]
+python = ">=3.11,<3.13"
+uv = ">=0.1.0"
+
+[feature.dev.dependencies]
+pytest = ">=8.0"
+pytest-cov = ">=4.1"
+ruff = ">=0.3"
+mypy = ">=1.8"
+pre-commit = ">=3.6"
+bandit = ">=1.7.5"
+
+[feature.docs.dependencies]
+mkdocs = ">=1.5"
+mkdocs-material = ">=9.5"
+mkdocstrings-python = ">=1.7"
+
+[environments]
+default = { features = ["dev"], solve-group = "default" }
+docs = { features = ["docs"], solve-group = "default" }
+prod = { solve-group = "default" }
+
+[tasks]
+# 开发任务
+install = "uv sync --all-extras"
+test = "pytest tests/ -v --cov=src --cov-report=term-missing --cov-report=html"
+lint = "ruff check src/ tests/ convo_sync.py"
+format = "ruff format src/ tests/ convo_sync.py"
+typecheck = "mypy src/ convo_sync.py"
+security = "bandit -r src/ convo_sync.py -ll"
+check = { depends_on = ["lint", "typecheck", "test"] }
+check-all = { depends_on = ["lint", "typecheck", "security", "test"] }
+
+# 运行任务
+run-clean = "python convo_sync.py clean"
+run-convert = "python convo_sync.py convert"
+run-pipeline = "python convo_sync.py pipeline"
+
+# 文档任务
+docs-serve = "mkdocs serve"
+docs-build = "mkdocs build"
+docs-deploy = "mkdocs gh-deploy --force"
+
+# Git hooks
+hooks-install = "pre-commit install"
+hooks-run = "pre-commit run --all-files"
+
+# 构建任务
+build = "uv build"
+clean-build = "rm -rf build/ dist/ *.egg-info"

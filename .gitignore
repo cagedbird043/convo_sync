@@ -53,6 +53,13 @@ env/
 env.bak/
 venv.bak/
 
+# Pixi
+.pixi/
+pixi.lock
+
+# MkDocs
+/site
+
 # IDE
 .vscode/
 .idea/
@@ -69,7 +76,13 @@ venv.bak/
 !README.md
 !CONTRIBUTING.md
 !CODE_STANDARDS.md
+!CHANGELOG.md
+!UPGRADE_GUIDE.md
+!PROJECT_SUMMARY.md
+!docs/**/*.md
 
 # Temporary files
 *.tmp
 *.log
+output/
+temp/
