@@ -3,57 +3,73 @@ name: Documentation
 on:
   push:
     branches: [main]
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "README.md"
+      - ".github/workflows/docs.yml"
   pull_request:
     branches: [main]
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "README.md"
 
 permissions:
   contents: write
 
+# 并发控制
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  deploy:
-    name: Build and Deploy Documentation
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Pixi
-        uses: prefix-dev/setup-pixi@v0.5.0
-        with:
-          pixi-version: latest
-          cache: true
-
-      - name: Install dependencies
-        run: pixi run -e docs install
-
-      - name: Build documentation
-        run: pixi run -e docs docs-build
-
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./site
-
   build:
     name: Build Documentation
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    timeout-minutes: 5
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 完整历史用于 git-revision-date 插件
 
       - name: Setup Pixi
-        uses: prefix-dev/setup-pixi@v0.5.0
+        uses: prefix-dev/setup-pixi@v0.8.0
         with:
           pixi-version: latest
           cache: true
-
-      - name: Install dependencies
-        run: pixi run -e docs install
+          cache-write: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          environments: docs
 
       - name: Build documentation
         run: pixi run -e docs docs-build
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-site
+          path: site/
+          retention-days: 7
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    timeout-minutes: 3
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docs-site
+          path: site/
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./site
+          force_orphan: true # 保持 gh-pages 分支干净

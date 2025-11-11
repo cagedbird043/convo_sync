@@ -1,5 +1,12 @@
 # ConvoSync
 
+[![CI](https://github.com/cagedbird043/convo_sync/actions/workflows/ci.yml/badge.svg)](https://github.com/cagedbird043/convo_sync/actions/workflows/ci.yml)
+[![Documentation](https://github.com/cagedbird043/convo_sync/actions/workflows/docs.yml/badge.svg)](https://github.com/cagedbird043/convo_sync/actions/workflows/docs.yml)
+[![codecov](https://codecov.io/gh/cagedbird043/convo_sync/branch/main/graph/badge.svg)](https://codecov.io/gh/cagedbird043/convo_sync)
+[![Python 3.12-3.14](https://img.shields.io/badge/python-3.12%20|%203.13%20|%203.14-blue.svg)](https://www.python.org/downloads/)
+[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 🚀 **AI Conversation Data Processing Toolkit**
 
 一个专业的 AI 对话数据清理、转换和管理工具集。

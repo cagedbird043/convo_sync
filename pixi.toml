@@ -1,4 +1,4 @@
-[project]
+[workspace]
 name = "convo_sync"
 version = "1.0.0"
 description = "AI Conversation Data Processing Toolkit"
@@ -6,7 +6,7 @@ channels = ["conda-forge"]
 platforms = ["linux-64", "osx-64", "osx-arm64", "win-64"]
 
 [dependencies]
-python = ">=3.11,<3.13"
+# 基础依赖（不指定 Python 版本，让各环境自己决定）
 uv = ">=0.1.0"
 
 [feature.dev.dependencies]
@@ -16,42 +16,144 @@ ruff = ">=0.3"
 mypy = ">=1.8"
 pre-commit = ">=3.6"
 bandit = ">=1.7.5"
+tox = ">=4.0"        # 用于多版本测试
 
 [feature.docs.dependencies]
 mkdocs = ">=1.5"
 mkdocs-material = ">=9.5"
 mkdocstrings-python = ">=1.7"
 
+# Python 3.12 环境（最低支持版本）
+[feature.py312.dependencies]
+python = "3.12.*"
+
+# Python 3.13 环境
+[feature.py313.dependencies]
+python = "3.13.*"
+
+# Python 3.14 环境（最新！刚发布 🚀）
+[feature.py314.dependencies]
+python = "3.14.*"
+
 [environments]
-default = { features = ["dev"], solve-group = "default" }
-docs = { features = ["docs"], solve-group = "default" }
-prod = { solve-group = "default" }
+# 默认环境 - Python 3.14（最新！）
+default = { features = ["dev", "py314"] }
+
+# 多版本测试环境（每个版本独立 solve-group）
+py312 = { features = ["dev", "py312"] }
+py313 = { features = ["dev", "py313"] }
+py314 = { features = ["dev", "py314"] }
+
+# 文档环境
+docs = { features = ["docs", "py314"] }
+
+# 生产环境
+prod = { features = ["py314"] }
 
 [tasks]
-# 开发任务
-install = "uv sync --all-extras"
-test = "pytest tests/ -v --cov=src --cov-report=term-missing --cov-report=html"
-lint = "ruff check src/ tests/ convo_sync.py"
-format = "ruff format src/ tests/ convo_sync.py"
-typecheck = "mypy src/ convo_sync.py"
-security = "bandit -r src/ convo_sync.py -ll"
-check = { depends_on = ["lint", "typecheck", "test"] }
-check-all = { depends_on = ["lint", "typecheck", "security", "test"] }
+# ============================================================================
+# 核心检查任务（按优先级排序）
+# ============================================================================
 
-# 运行任务
+# 1. 格式化（最快，自动修复）
+format = "ruff format src/ tests/ convo_sync.py"
+
+# 2. Lint 检查（快速，发现明显问题）
+lint = "ruff check src/ tests/ convo_sync.py"
+
+# 3. 类型检查（中速，发现类型问题）
+typecheck = "mypy src/ convo_sync.py"
+
+# 4. 安全检查（快速，发现安全问题）
+security = "bandit -r src/ convo_sync.py -ll"
+
+# 5. 单元测试（当前环境）
+test = "python -m pytest tests/ -v --cov=src --cov-report=term-missing --cov-report=html -p no:requests_mock"
+
+# ============================================================================
+# 多版本兼容性检查
+# ============================================================================
+
+# 所有版本测试（需要手动指定环境运行）
+# 使用方式：pixi run -e py312 test, pixi run -e py313 test, pixi run -e py314 test
+
+# 批量运行所有版本测试的脚本
+test-all-versions = """
+echo '=== Testing Python 3.12 ===' && \
+pixi run -e py312 test && \
+echo '=== Testing Python 3.13 ===' && \
+pixi run -e py313 test && \
+echo '=== Testing Python 3.14 ===' && \
+pixi run -e py314 test && \
+echo '=== All Python versions tested successfully! ==='
+"""
+
+# Python 版本信息
+python-version = "python --version && python -c 'import sys; print(f\"Python {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}\")'"
+
+# 显示所有环境的 Python 版本
+show-versions = """
+echo '=== Python 3.12 ===' && pixi run -e py312 python-version && \
+echo '=== Python 3.13 ===' && pixi run -e py313 python-version && \
+echo '=== Python 3.14 ===' && pixi run -e py314 python-version
+"""
+
+# ============================================================================
+# 组合检查任务
+# ============================================================================
+
+# 快速检查（本地开发用，只检查当前环境）
+check = { depends-on = ["format", "lint", "typecheck", "test"] }
+
+# 完整检查（推送前，包括安全检查）
+check-all = { depends-on = ["format", "lint", "typecheck", "security", "test"] }
+
+# 完整兼容性检查（CI 用，所有版本）
+check-compat = { depends-on = [
+    "format",
+    "lint",
+    "typecheck",
+    "security",
+    "test-all-versions",
+] }
+
+# ============================================================================
+# 开发任务
+# ============================================================================
+
+# 安装依赖
+install = "uv sync --all-extras"
+
+# 运行清理
 run-clean = "python convo_sync.py clean"
+
+# 运行转换
 run-convert = "python convo_sync.py convert"
+
+# 运行完整管道
 run-pipeline = "python convo_sync.py pipeline"
 
+# ============================================================================
 # 文档任务
+# ============================================================================
+
 docs-serve = "mkdocs serve"
 docs-build = "mkdocs build"
 docs-deploy = "mkdocs gh-deploy --force"
 
-# Git hooks
+# ============================================================================
+# Git Hooks
+# ============================================================================
+
 hooks-install = "pre-commit install"
 hooks-run = "pre-commit run --all-files"
 
+# ============================================================================
 # 构建任务
+# ============================================================================
+
 build = "uv build"
-clean-build = "rm -rf build/ dist/ *.egg-info"
+clean-build = "rm -rf build/ dist/ *.egg-info htmlcov/ .coverage .pytest_cache/ .mypy_cache/ .ruff_cache/"
+
+# 构建并检查包
+build-check = { depends-on = ["clean-build", "check-compat", "build"] }

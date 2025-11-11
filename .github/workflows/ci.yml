@@ -6,65 +6,151 @@ on:
   pull_request:
     branches: [main]
 
+# 并发控制：取消同一 PR 的旧运行
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test:
-    name: Test on ${{ matrix.os }} - Python ${{ matrix.python-version }}
-    runs-on: ${{ matrix.os }}
+  # Layer 1: 快速检查 - 使用 Pixi Docker 镜像
+  pre-commit:
+    name: Pre-commit Checks (Pixi Docker)
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/prefix-dev/pixi:latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Cache pre-commit
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-docker-${{ hashFiles('.pre-commit-config.yaml', 'pixi.lock') }}
+          restore-keys: |
+            pre-commit-docker-
+
+      - name: Show Pixi version
+        run: pixi --version
+
+      - name: Show Python versions
+        run: pixi run show-versions
+
+      - name: Run pre-commit via Pixi
+        run: pixi run hooks-run
+
+  # Layer 2: Python 多版本兼容性测试（Linux + Pixi Docker）
+  test-compatibility:
+    name: Test Python ${{ matrix.python-version }} (Docker)
+    needs: pre-commit
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/prefix-dev/pixi:latest
+    timeout-minutes: 8
     strategy:
-      fail-fast: false
+      fail-fast: false # 所有版本都要测试完
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.12", "3.13", "3.14"]
+        include:
+          - python-version: "3.12"
+            pixi-environment: "py312"
+          - python-version: "3.13"
+            pixi-environment: "py313"
+          - python-version: "3.14"
+            pixi-environment: "py314"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Test Python ${{ matrix.python-version }}
+        run: |
+          echo "Testing with Python ${{ matrix.python-version }}"
+          pixi run -e ${{ matrix.pixi-environment }} python-version
+          pixi run -e ${{ matrix.pixi-environment }} test
+
+      - name: Upload coverage for Python ${{ matrix.python-version }}
+        if: matrix.python-version == '3.14'
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./htmlcov/coverage.xml,./coverage.xml
+          flags: py${{ matrix.python-version }}
+          name: python-${{ matrix.python-version }}
+          fail_ci_if_error: false
+
+  # Layer 3: 跨平台测试（macOS 和 Windows，只测最新 Python）
+  test-cross-platform:
+    name: Test ${{ matrix.os }} (Python 3.14)
+    needs: pre-commit
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [macos-latest, windows-latest]
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Setup Pixi
-        uses: prefix-dev/setup-pixi@v0.5.0
+        uses: prefix-dev/setup-pixi@v0.8.0
         with:
           pixi-version: latest
           cache: true
+          cache-write: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
 
-      - name: Install dependencies
-        run: pixi run install
+      - name: Show environment
+        run: pixi run python-version
 
-      - name: Run linters
-        run: pixi run lint
-
-      - name: Run type checker
-        run: pixi run typecheck
-
-      - name: Run security checker
-        run: pixi run security
-
-      - name: Run tests with coverage
+      - name: Run tests
         run: pixi run test
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
-        with:
-          file: ./coverage.xml
-          flags: unittests
-          name: codecov-umbrella
-
-  quality:
-    name: Code Quality
+  # Layer 4: 完整质量检查（仅主分支，使用 Docker）
+  quality-full:
+    name: Full Quality & Compatibility Check
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+    needs: [pre-commit, test-compatibility, test-cross-platform]
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/prefix-dev/pixi:latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Pixi
-        uses: prefix-dev/setup-pixi@v0.5.0
+      - name: Run complete compatibility check
+        run: |
+          echo "=== Running full compatibility check across all Python versions ==="
+          pixi run check-compat
+
+      - name: Build package
+        run: pixi run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
         with:
-          pixi-version: latest
-          cache: true
+          name: dist-packages
+          path: dist/
+          retention-days: 7
 
-      - name: Install dependencies
-        run: pixi run install
-
-      - name: Run all quality checks
-        run: pixi run check-all
+  # 状态汇总（可选，方便查看）
+  ci-success:
+    name: CI Success
+    needs: [pre-commit, test-compatibility, test-cross-platform]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Success
+        run: |
+          echo "✅ All CI checks passed!"
+          echo "- Pre-commit: ✅"
+          echo "- Python 3.12: ✅"
+          echo "- Python 3.13: ✅"
+          echo "- Python 3.14: ✅"
+          echo "- macOS: ✅"
+          echo "- Windows: ✅"

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 ConvoSync CLI - Command-line interface for conversation data processing
 """
@@ -102,13 +101,12 @@ def main():
             else:
                 parser.print_help()
                 sys.exit(1)
-        else:
-            if args.command == "clean":
-                handle_clean(args)
-            elif args.command == "convert":
-                handle_convert(args)
-            elif args.command == "pipeline":
-                handle_pipeline(args)
+        elif args.command == "clean":
+            handle_clean(args)
+        elif args.command == "convert":
+            handle_convert(args)
+        elif args.command == "pipeline":
+            handle_pipeline(args)
     except Exception as e:
         print(f"❌ Error: {e}", file=sys.stderr)
         sys.exit(1)

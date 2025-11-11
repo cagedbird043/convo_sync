@@ -63,6 +63,8 @@ nav:
   - User Guide:
       - CLI Usage: guide/cli.md
       - Examples: guide/examples.md
+      - Pre-commit Hooks: guide/pre-commit.md
+      - CI/CD Optimization: guide/ci-optimization.md
   - API Reference:
       - Cleaners: api/cleaners.md
       - Converters: api/converters.md

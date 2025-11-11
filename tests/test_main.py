@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Unit tests for ConvoSync toolkit
 """
 
 import json
 import os
+import shutil
 
 # Add parent directory to path for imports
 import sys
 import tempfile
 import unittest
-from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -28,8 +27,6 @@ class TestJSONCleaner(unittest.TestCase):
 
     def tearDown(self):
         """Clean up temporary files"""
-        import shutil
-
         shutil.rmtree(self.temp_dir)
 
     def create_test_json(self, filename, data):
@@ -62,7 +59,7 @@ class TestJSONCleaner(unittest.TestCase):
         cleaner = JSONCleaner(input_file, output_file)
         cleaner.clean()
 
-        with open(output_file, "r", encoding="utf-8") as f:
+        with open(output_file, encoding="utf-8") as f:
             result = json.load(f)
 
         self.assertEqual(len(result["conversations"]), 1)
@@ -83,7 +80,7 @@ class TestJSONCleaner(unittest.TestCase):
         cleaner = JSONCleaner(input_file, output_file)
         cleaner.clean()
 
-        with open(output_file, "r", encoding="utf-8") as f:
+        with open(output_file, encoding="utf-8") as f:
             result = json.load(f)
 
         self.assertEqual(len(result["conversations"]), 2)
@@ -121,8 +118,6 @@ class TestMarkdownConverter(unittest.TestCase):
 
     def tearDown(self):
         """Clean up temporary files"""
-        import shutil
-
         shutil.rmtree(self.temp_dir)
 
     def create_test_json(self, filename, data):
@@ -147,11 +142,11 @@ class TestMarkdownConverter(unittest.TestCase):
         converter = MarkdownConverter(input_file, output_file)
         converter.convert()
 
-        with open(output_file, "r", encoding="utf-8") as f:
+        with open(output_file, encoding="utf-8") as f:
             content = f.read()
 
-        self.assertIn("👤", content)
-        self.assertIn("🤖", content)
+        self.assertIn("**Human:**", content)
+        self.assertIn("**Assistant:**", content)
         self.assertIn("Hello", content)
         self.assertIn("Hi there!", content)
 
@@ -170,11 +165,11 @@ class TestMarkdownConverter(unittest.TestCase):
         converter = MarkdownConverter(input_file, output_file)
         converter.convert()
 
-        with open(output_file, "r", encoding="utf-8") as f:
+        with open(output_file, encoding="utf-8") as f:
             lines = f.readlines()
 
         # Check for header
-        self.assertTrue(any("对话记录" in line for line in lines))
+        self.assertTrue(any("Conversation Log" in line for line in lines))
         # Check for separators
         self.assertTrue(any(line.strip().startswith("---") for line in lines))
 
@@ -196,7 +191,7 @@ class TestMarkdownConverter(unittest.TestCase):
         stats = converter.get_stats()
 
         self.assertEqual(stats["users"], 2)
-        self.assertEqual(stats["assistants"], 1)
+        self.assertEqual(stats["models"], 1)
 
 
 class TestIntegration(unittest.TestCase):
@@ -208,8 +203,6 @@ class TestIntegration(unittest.TestCase):
 
     def tearDown(self):
         """Clean up temporary files"""
-        import shutil
-
         shutil.rmtree(self.temp_dir)
 
     def test_full_pipeline(self):
@@ -245,17 +238,18 @@ class TestIntegration(unittest.TestCase):
         converter.convert()
 
         # Verify outputs
-        with open(clean_file, "r", encoding="utf-8") as f:
+        with open(clean_file, encoding="utf-8") as f:
             clean_data = json.load(f)
 
         self.assertEqual(len(clean_data["conversations"]), 2)
         self.assertEqual(clean_data["conversations"][0]["text"], "How are you?")
 
-        with open(md_file, "r", encoding="utf-8") as f:
+        with open(md_file, encoding="utf-8") as f:
             md_content = f.read()
 
         self.assertIn("How are you?", md_content)
-        self.assertIn("👤", md_content)
+        self.assertIn("**Human:**", md_content)
+        self.assertIn("**Assistant:**", md_content)
 
 
 if __name__ == "__main__":

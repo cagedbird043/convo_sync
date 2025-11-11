@@ -1,0 +1,94 @@
+name: PR Quick Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+# 并发控制：取消同一 PR 的旧运行
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  # 超快速检查 - 只在修改的文件上运行
+  quick-check:
+    name: Quick Lint (Changed Files Only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Pixi
+        uses: prefix-dev/setup-pixi@v0.8.0
+        with:
+          pixi-version: latest
+          cache: true
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v44
+        with:
+          files: |
+            **/*.py
+
+      - name: Lint changed files only
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          echo "Changed Python files:"
+          echo "${{ steps.changed-files.outputs.all_changed_files }}"
+          pixi run ruff check ${{ steps.changed-files.outputs.all_changed_files }}
+
+      - name: Type check changed files
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          pixi run mypy ${{ steps.changed-files.outputs.all_changed_files }}
+
+  # PR 大小检查
+  pr-size:
+    name: PR Size Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+
+    steps:
+      - name: Check PR size
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const additions = pr.additions;
+            const deletions = pr.deletions;
+            const total = additions + deletions;
+
+            let label = '';
+            let message = '';
+
+            if (total < 100) {
+              label = 'size/XS';
+              message = '✅ Tiny PR - Easy to review!';
+            } else if (total < 300) {
+              label = 'size/S';
+              message = '✅ Small PR - Good size!';
+            } else if (total < 500) {
+              label = 'size/M';
+              message = '⚠️ Medium PR - Consider splitting?';
+            } else if (total < 1000) {
+              label = 'size/L';
+              message = '⚠️ Large PR - Please consider splitting!';
+            } else {
+              label = 'size/XL';
+              message = '❌ Extra Large PR - Definitely split this!';
+            }
+
+            core.info(`${message} (${additions} additions, ${deletions} deletions)`);
+
+            // Add comment
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              body: `## PR Size Analysis\n\n${message}\n\n📊 Changes: +${additions} -${deletions} (${total} total)`
+            });

@@ -116,13 +116,13 @@ class MarkdownConverter:
         - Optional thinking process removal
         """
         try:
-            with open(self.input_json_file, "r", encoding="utf-8") as f:
+            with open(self.input_json_file, encoding="utf-8") as f:
                 data = json.load(f)
         except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON file: {e}")
-        except FileNotFoundError:
+            raise ValueError(f"Invalid JSON file: {e}") from e
+        except FileNotFoundError as e:
             msg = f"Input file not found: {self.input_json_file}"
-            raise FileNotFoundError(msg)
+            raise FileNotFoundError(msg) from e
 
         if "conversations" not in data:
             raise ValueError("JSON file format incorrect: 'conversations' field not found")
@@ -137,7 +137,7 @@ class MarkdownConverter:
             f.write("---\n\n")
 
             # Process each conversation
-            for idx, conv in enumerate(conversations, 1):
+            for conv in conversations:
                 role = conv.get("role", "unknown").lower()
                 text = conv.get("text", "").strip()
 
@@ -162,29 +162,29 @@ class MarkdownConverter:
 
                 # Format output based on role
                 if role == "user":
-                    self._write_user_message(f, idx, text)
+                    self._write_user_message(f, text)
                 elif role == "model":
-                    self._write_assistant_message(f, idx, text)
+                    self._write_assistant_message(f, text)
                 else:
-                    self._write_other_message(f, idx, role, text)
+                    self._write_other_message(f, role, text)
 
         return self.output_md_file
 
-    def _write_user_message(self, f, idx, text):
+    def _write_user_message(self, f, text):
         """Write user message in standard format."""
         f.write("**Human:**\n\n")
         f.write(text)
         f.write("\n\n")
         f.write("---\n---\n\n")
 
-    def _write_assistant_message(self, f, idx, text):
+    def _write_assistant_message(self, f, text):
         """Write assistant message in standard format."""
         f.write("**Assistant:**\n\n")
         f.write(text)
         f.write("\n\n")
         f.write("---\n---\n\n")
 
-    def _write_other_message(self, f, idx, role, text):
+    def _write_other_message(self, f, role, text):
         """Write other role message in standard format."""
         f.write(f"**{role.capitalize()}:**\n\n")
         f.write(text)
