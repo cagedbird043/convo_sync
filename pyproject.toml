@@ -180,9 +180,9 @@ install = "uv sync --all-extras"
 run-clean = "python convo_sync.py clean"
 run-convert = "python convo_sync.py convert"
 run-pipeline = "python convo_sync.py pipeline"
-docs-serve = "mkdocs serve"
-docs-build = "mkdocs build"
-docs-deploy = "mkdocs gh-deploy --force"
+docs-serve = { cmd = "mkdocs serve", env = { PYTHONPATH = "." } }
+docs-build = { cmd = "mkdocs build", env = { PYTHONPATH = "." } }
+docs-deploy = { cmd = "mkdocs gh-deploy --force", env = { PYTHONPATH = "." } }
 hooks-install = "pre-commit install"
 hooks-run = "pre-commit run --all-files"
 build = "uv build"
