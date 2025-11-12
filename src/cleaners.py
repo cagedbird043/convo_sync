@@ -253,11 +253,11 @@ class JSONCleaner:
                 "markdown",
                 "code",
             }:
-                return "[代码块已移除]"
+                return ""
 
             # 智能检测内容是否为代码
             if self._is_code_content(content):
-                return "[代码块已移除]"
+                return ""
 
             # 保留纯文本/总结（去掉围栏，保留内容）
             return content.strip()
