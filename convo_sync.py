@@ -159,6 +159,10 @@ def pipeline(
         typer.secho(f"❌ Error: File not found: {input_file}", fg=typer.colors.RED, err=True)
         raise typer.Exit(1)
 
+    if input_file.is_dir():
+        typer.secho(f"❌ Error: Input must be a file, not a directory: {input_file}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(1)
+
     remove_thinking = not keep_thinking
     remove_code = not keep_code
 
